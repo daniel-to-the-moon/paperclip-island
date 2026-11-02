@@ -1,0 +1,97 @@
+--- v0.1.1-draft/SPEC.md
++++ v0.1.2-draft/SPEC.md
+@@ -1,6 +1,6 @@
+ # Paperclip Island 只读客户端设计规格
+ 
+-版本：`paperclip-island-m0-spec-v0.1.1-draft`  
++版本：`paperclip-island-m0-spec-v0.1.2-draft`  
+ 日期：2026 年 11 月 2 日  
+ 状态：待独立设计评审，待用户批准设计；不是实施许可  
+ 作者：设计作者；评审人必须未参与本文及产品实现  
+@@ -96,6 +96,8 @@
+ 
+ `baseline` 是完整替换快照，必须有新的 generation 与有效 epoch。空 baseline 表示“暂无任务”，不代表历史任务成功。增量缺少必填 ID、未知状态、负数序号或冲突字段时拒绝该增量并记录脱敏诊断，不把它变成成功。重复任务键且内容不同的 baseline 整体拒绝，不部分拼接。
+ 
++每个 source_id／stream_epoch 在本进程内保留最高已接受 event_seq 水位；重连或更换 provider_generation 不清空它。新 baseline 低于该水位时整体拒绝，不能回滚任务或恢复 online；同水位 baseline 如与已知可信来源快照矛盾也整体拒绝。高于水位的合法完整 baseline 可建立新可信快照；相同且一致的水位可确认现状。只有明确切换 stream_epoch 才建立独立水位；epoch 不是为了接受旧快照随便重写的字段。M0 水位只在进程内存中，重启后没有跨进程新鲜度保证，M1 必须另核后端版本／游标契约。
++
+ 有效 baseline 原子建立本 generation 的同步资格和最后 event_seq。任何缺口（收到的序号大于游标＋1）或无法安全解析的预期新事件，均不应用任务变化、不提醒，撤销同步资格并标记 desynced／stale，等待新的完整 baseline；不在 M0 增加缓冲重排或补请求。完全相同的较旧／重复来源事件直接丢弃且不刷新时间；同一 generation 内保留已见 seq 的规范化来源字段用于比较（排除本地接收时间），相同 seq 却不同 payload 属冲突，撤销同步资格并等待新 baseline，不能当正常重复。跨任务也使用同一游标，因此不能先应用 task B 的 seq 12 再永久丢掉 task A 的 seq 11。
+ 
+ 每次 provider 重新建立或手动重置 fixture 都产生新的本地 `provider_generation`。过期 generation 的响应、计时器和回调一律丢弃。更新取消并不证明回调不会迟到，故 reducer 仍必须做 generation 校验。
+@@ -104,7 +106,7 @@
+ 
+ ### 双轴模型
+ 
+-任务状态与连接状态独立。离线时保留最后已知任务状态和时间，同时显示“离线，状态可能已变化”，不得把 running 改成 failed，不得把 failed 改成 succeeded。没有可信 baseline 时任务为 unknown。
++任务状态与连接状态独立。离线时保留最后已知任务状态和时间，同时显示“离线，状态可能已变化”，不得把 running 改成 failed，不得把 failed 改成 succeeded。从未建立过可信 baseline 时任务为 unknown；断线只是撤销当前同步资格，不清除历史可信任务。
+ 
+ 新鲜度建议默认 `stale_after = 30 秒`（年龄达到 30 秒即 stale），作为可注入时钟参数供确定性测试，待用户批准后冻结。30 秒是显示阈值，不是网络重试授权、任务超时或终止条件。没有数据更新但有效 heartbeat 到达，可保持连接 online；任务各自的更新时间不因此改变。
+ 
+--- v0.1.1-draft/ACCEPTANCE.md
++++ v0.1.2-draft/ACCEPTANCE.md
+@@ -1,6 +1,6 @@
+ # Paperclip Island 验收与协作闭环
+ 
+-版本：`paperclip-island-m0-spec-v0.1.1-draft`  
++版本：`paperclip-island-m0-spec-v0.1.2-draft`  
+ 日期：2026 年 11 月 2 日  
+ 状态：配套设计规则草案，待独立评审与用户批准  
+ 适用范围：独立私有项目的 M0 mock-only 客户端，不授 M1、发布或 Mac 执行权限
+@@ -49,11 +49,11 @@
+ 
+ ## 5 设计冻结和版本绑定
+ 
+-设计使用人可读版本与字节摘要双绑定。本版本为 `paperclip-island-m0-spec-v0.1.1-draft`。`REVIEW_MANIFEST.json` 记录 SPEC、ACCEPTANCE、schema 的 SHA-256，不在文件内自嵌其自身 hash，避免循环。
++设计使用人可读版本与字节摘要双绑定。本版本为 `paperclip-island-m0-spec-v0.1.2-draft`。`REVIEW_MANIFEST.json` 记录 SPEC、ACCEPTANCE、schema 的 SHA-256，不在文件内自嵌其自身 hash，避免循环。
+ 
+ 独立评审须直接读取这些文件，而不是只读作者摘要。结论包含版本、各文件 hash、评审范围、发现等级、阻塞项及没有检查的部分。任何规范性修改均更新版本或 revision、重算 hash，并给出相对已评审基线的 diff SHA-256。旧 review 不自动覆盖新字节；纯排版修正也要记录差异，由 reviewer 判定是否仅需增量复核。
+ 
+-产品最终验收仅接受 **clean committed tree**：执行前后确认 HEAD/tree 与记录一致、无 tracked 修改或产品范围内 untracked 文件。dirty 工作区、未提交补丁和 untracked 产物只能作为诊断旁证，不能进入最终验收证据或补上某个 pass；不为获取 clean 而自动删除／覆盖文件。
++产品最终验收仅接受 **clean committed tree**：执行前后确认 HEAD/tree 与记录一致、无 tracked 修改或用作输入的 untracked 源码。dirty 工作区、未提交源码补丁和未跟踪的输入源码只能作为诊断旁证，不能支撑最终验收 pass。正常构建出的 .app、日志、截图及报告允许存放独立输出区，逐项 hash 绑定 clean 源码和实际命令；不要求把生成二进制提交进 git。不为获取 clean 而自动删除／覆盖文件。
+ 
+ 产品阶段同时绑定 repo、base/head commit、tree、规范化 diff hash、构建产物 hash、spec hash 与测试证据。这里的 diff hash 建议对保留的 `git diff --binary --full-index <base> <head>` 输出原始字节求 SHA-256；不凭手工摘要替代。尚无仓库／源码时字段为 null 且 subject.kind 为 design-only，不能填虚构 SHA。
+ 
+@@ -87,6 +87,7 @@
+ | ST22 | baseline前heartbeat；disconnect后迟到heartbeat/event；30秒timer | 不online；offline不会被timer变stale；新baseline才恢复 | 迟到回调复活连接 |
+ | ST23 | 同attempt四状态×四状态；任意旧态接更高合法attempt | 与SPEC完整矩阵一致；unknown不提醒；冲突锁仅baseline/新attempt解 | 实现者自行猜状态 |
+ | ST24 | 睡眠／唤醒，随后旧回调和新baseline | 唤醒先过期／重新同步，保留任务；旧回调无效；不回放失败 | 睡醒仍虚假新鲜 |
++| ST25 | 同source/epoch已接受seq21终态，重连新generation收到seq10旧baseline；相同水位矛盾快照 | 拒绝旧／矛盾baseline，保留最后可信任务与stale/offline；有效同水位一致或更高baseline才恢复 | generation新就回滚并online |
+ 
+ ## 7 提醒与入口验收
+ 
+--- v0.1.1-draft/GATE_REGISTER.md
++++ v0.1.2-draft/GATE_REGISTER.md
+@@ -1,11 +1,11 @@
+ # Paperclip Island 门禁登记（设计阶段）
+ 
+-绑定规格：`paperclip-island-m0-spec-v0.1.1-draft`。精确文件摘要见同目录 `REVIEW_MANIFEST.json`；本文件不授予权限。下列状态只反映本次设计工作，没有产品执行结果。owner 为负责跟进者，不等于获执行许可。
++绑定规格：`paperclip-island-m0-spec-v0.1.2-draft`。精确文件摘要见同目录 `REVIEW_MANIFEST.json`；本文件不授予权限。下列状态只反映本次设计工作，没有产品执行结果。owner 为负责跟进者，不等于获执行许可。
+ 
+ | Gate | 状态 | 已有／缺少证据及下一条件 | owner |
+ | --- | --- | --- | --- |
+ | G0 设计完整 | blocked | SPEC、ACCEPTANCE、schema 已编写和作者结构自检；等修订版独立自洽复核 | 设计作者 |
+-| G1 独立设计审查 | blocked | 初版 changes_required；v0.1.1 已回应，等精确 hash 增量结论 | 独立 reviewer |
++| G1 独立设计审查 | blocked | 初版 changes_required；v0.1.2 已回应，等精确 hash 增量结论 | 独立 reviewer |
+ | G2 用户设计批准 | not_run | 用户只批准独立私有路线，未看本设计；需最终版本批准原文引用 | 用户／协调者 |
+ | G3 实施授权与认领 | not_run | repo 未建、实现计划／锁／运行许可未定；不继承旧项目授权 | 协调者 |
+ | G4 M0 逻辑 | not_run | 没有产品代码或 fixture 执行；作者文档检查不计入 | 后续唯一实现 owner |
+--- v0.1.1-draft/REVIEW_RESPONSE.md
++++ v0.1.2-draft/REVIEW_RESPONSE.md
+@@ -2,7 +2,7 @@
+ 
+ 作者：`/root/inspect_release_access`；schema 作者：`/root/inspect_release_access/draft_evidence_schema`。独立 reviewer：`/root/review_island_acceptance`，未写本文或规范文件。
+ 
+-评审基线：`paperclip-island-m0-spec-v0.1.0-draft`，保存在 `review-baselines/v0.1.0-draft/`。修订：`paperclip-island-m0-spec-v0.1.1-draft`。初版独评为 changes_required，无 P0；以下“已修”是作者响应，仍等独立复核，不能自关评审问题。
++评审基线：`paperclip-island-m0-spec-v0.1.0-draft`，保存在 `review-baselines/v0.1.0-draft/`。修订：`paperclip-island-m0-spec-v0.1.2-draft`。初版独评为 changes_required，无 P0；以下“已修”是作者响应，仍等独立复核，不能自关评审问题。
+ 
+ | 项 | 作者修订及位置 | 待复核 |
+ | --- | --- | --- |
+@@ -16,3 +16,9 @@
+ | R8 焦点/屏幕 | SPEC §9与UI01/02：hover不key，点击可聚焦，非key不截Esc；负坐标/热插拔/缩放重算 | 仍需真实Mac，未实测 |
+ 
+ 本轮没有产品实现、依赖安装、仓库创建、Mac 执行、通知授权、真实接口访问。作者自检与 schema 片段探针仅验证文档结构，不能算 ST/NT/UI 产品通过。
++
++## v0.1.1 增量复核响应（待独立终审）
++
++- R9：SPEC §6 保留跨 generation 的 source/epoch 最高已接受水位，拒绝旧 baseline／同水位矛盾快照；补 ST25。不声称重启后仍有记忆。
++- R10：ACCEPTANCE §5 区分输入源码与输出产物；clean commit 限定输入，.app／日志／截图可在独立输出区 hash 绑定，不需提交二进制。
++- 措辞收紧：SPEC §7 从未取得 baseline 才是初始 unknown；断线保留历史可信任务。

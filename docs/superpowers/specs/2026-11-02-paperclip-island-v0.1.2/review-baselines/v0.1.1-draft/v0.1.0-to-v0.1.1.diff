@@ -1,0 +1,706 @@
+--- v0.1.0-draft/SPEC.md
++++ v0.1.1-draft/SPEC.md
+@@ -1,6 +1,6 @@
+ # Paperclip Island 只读客户端设计规格
+ 
+-版本：`paperclip-island-m0-spec-v0.1.0-draft`  
++版本：`paperclip-island-m0-spec-v0.1.1-draft`  
+ 日期：2026 年 11 月 2 日  
+ 状态：待独立设计评审，待用户批准设计；不是实施许可  
+ 作者：设计作者；评审人必须未参与本文及产品实现  
+@@ -81,7 +81,7 @@
+ | --- | --- |
+ | `source_id` | 虚构数据源命名空间；去重和任务身份的一部分 |
+ | `stream_epoch` | 数据流世代；更换时必须先建立新 baseline，不能接着用旧游标 |
+-| `event_seq` | 当前 epoch 内严格递增的非负整数；用于顺序，不按墙钟排序 |
++| `event_seq` | 当前 epoch 内的全局连续非负整数；baseline 给出游标，之后每条 task_update／heartbeat 来源事件必须等于游标＋1；本地连接事件不占序号；不按墙钟排序 |
+ | `kind` | `baseline`、`task_update`、`connected`、`disconnected`、`heartbeat` |
+ | `task_id` | 不透明稳定 ID；不得从标题推导 |
+ | `attempt_id` / `attempt_ordinal` | 一次执行的稳定 ID 与单调递增序号；不同尝试不能混为同一失败 |
+@@ -92,8 +92,12 @@
+ | `source_updated_at` | 可选，仅作来源时间展示，不决定事件顺序 |
+ | `detail_target` | M0 固定为 unavailable，或仅供测试的标记值，不含真实 URL／凭据 |
+ 
++按 kind 区分字段：所有事件带本地 provider_generation 和 source_id；本地 `connected`／`disconnected` 只描述连接，不携带或消耗来源 event_seq，不要求 task 字段。`baseline` 带 stream_epoch、event_seq 水位和完整 tasks 数组，每个 task 必须有 task/attempt/revision/state；水位是快照已包含的最后来源事件序号，不表示列表长度。`task_update` 必须带 epoch、event_seq 和单个完整 task 字段；`heartbeat` 必须带 epoch、event_seq，但没有 task/attempt/revision。received_at 由接收端生成，不信任 fixture 自报的“现在”。初次合法 baseline 可直接建立同步；明确断线后必须先有本地 connected 和新 generation，再接受新 baseline。
++
+ `baseline` 是完整替换快照，必须有新的 generation 与有效 epoch。空 baseline 表示“暂无任务”，不代表历史任务成功。增量缺少必填 ID、未知状态、负数序号或冲突字段时拒绝该增量并记录脱敏诊断，不把它变成成功。重复任务键且内容不同的 baseline 整体拒绝，不部分拼接。
+ 
++有效 baseline 原子建立本 generation 的同步资格和最后 event_seq。任何缺口（收到的序号大于游标＋1）或无法安全解析的预期新事件，均不应用任务变化、不提醒，撤销同步资格并标记 desynced／stale，等待新的完整 baseline；不在 M0 增加缓冲重排或补请求。完全相同的较旧／重复来源事件直接丢弃且不刷新时间；同一 generation 内保留已见 seq 的规范化来源字段用于比较（排除本地接收时间），相同 seq 却不同 payload 属冲突，撤销同步资格并等待新 baseline，不能当正常重复。跨任务也使用同一游标，因此不能先应用 task B 的 seq 12 再永久丢掉 task A 的 seq 11。
++
+ 每次 provider 重新建立或手动重置 fixture 都产生新的本地 `provider_generation`。过期 generation 的响应、计时器和回调一律丢弃。更新取消并不证明回调不会迟到，故 reducer 仍必须做 generation 校验。
+ 
+ ## 7 状态机与新鲜度
+@@ -102,9 +106,11 @@
+ 
+ 任务状态与连接状态独立。离线时保留最后已知任务状态和时间，同时显示“离线，状态可能已变化”，不得把 running 改成 failed，不得把 failed 改成 succeeded。没有可信 baseline 时任务为 unknown。
+ 
+-新鲜度建议默认 `stale_after = 30 秒`，作为可注入时钟参数供确定性测试，待用户批准后冻结。30 秒是显示阈值，不是网络重试授权、任务超时或终止条件。没有数据更新但有效 heartbeat 到达，可保持连接 online；任务各自的更新时间不因此改变。
+-
+-使用单调时钟计算过期，墙钟只展示日期时间。系统时钟前后跳不能使状态倒退、年龄显示负数或制造通知。只有成功接受 baseline、合法事件或合法 heartbeat 才推进连接成功时间；解析失败和请求尝试不能刷新成功时间。
++新鲜度建议默认 `stale_after = 30 秒`（年龄达到 30 秒即 stale），作为可注入时钟参数供确定性测试，待用户批准后冻结。30 秒是显示阈值，不是网络重试授权、任务超时或终止条件。没有数据更新但有效 heartbeat 到达，可保持连接 online；任务各自的更新时间不因此改变。
++
++使用单调时钟计算过期，墙钟只展示日期时间。系统时钟前后跳不能使状态倒退、年龄显示负数或制造通知。只有当前 generation 已具有效 baseline 且同步资格完整时，合法连续事件／heartbeat 才推进连接成功时间。无 baseline、已断线、缺口或旧 generation 的 heartbeat／增量不能恢复 online。解析失败和请求尝试不能刷新成功时间。
++
++连接优先级：明确 offline 高于 stale 定时器；offline 不会因时间流逝或迟到 heartbeat 变成 stale／online。disconnected 立即撤销同步资格；恢复连接只能先进入 stale／同步中，再以新 generation 的完整 baseline 恢复 online。睡眠唤醒也按需要重新同步处理，保持最后已知任务但标 stale（原为 offline 则仍 offline），用新的 generation／baseline 恢复，不回放历史提醒；不依赖睡眠时计时器是否按时触发。
+ 
+ ### 任务转换
+ 
+@@ -116,10 +122,21 @@
+ | unknown / running | 新版本 failed | failed；仅满足第 8 节条件时产生一次模拟提醒 |
+ | 任意 | 相同 event 或 revision | 不变；不重复提醒，不伪刷新任务时间 |
+ | 任意 | 更旧 event / revision / attempt | 忽略；不回滚状态 |
+-| succeeded / failed | 同 attempt 的 running 或相反终态 | unknown，标记 source_conflict；不得擅选成功，不提醒冲突 |
+-| 终态 | 更高 attempt_ordinal 的新 attempt | 按新尝试建立状态；旧失败记录不阻止新尝试的失败提醒 |
+-| 冲突 unknown | 同 epoch 普通增量 | 保持冲突，直到新的完整 baseline 明确恢复；不靠随机后到事件解冲突 |
+-| 任意 | malformed / 未知 task_state | 拒绝增量；保留最后可信值并标记输入诊断 |
++| succeeded / failed | 同 attempt 的 running、unknown 或相反终态 | unknown，标记 source_conflict；不得擅选成功，不提醒冲突 |
++| 任意，包括 source_conflict | 更高 attempt_ordinal 且新 ID 的合法 attempt | 按新尝试的四种枚举建立状态；旧失败记录不阻止新尝试的新失败提醒 |
++| 冲突 unknown | 同 attempt 普通增量 | 保持冲突，直到新的完整 baseline 或更高合法 attempt；同尝试后到事件不能解冲突 |
++| 任意 | malformed / 未知 task_state | 拒绝增量；保留最后可信值并标诊断；若破坏连续输入资格则 desynced，等新 baseline |
++
++同一合法 attempt 的完整 4×4 转换如下（输入均须通过 generation、连续序号及 revision 校验）：
++
++| 当前\输入 | running | succeeded | failed | unknown |
++| --- | --- | --- | --- | --- |
++| running | running | succeeded | failed，候选提醒 | unknown，不提醒 |
++| unknown（非冲突） | running | succeeded | failed，候选提醒 | unknown，不提醒 |
++| succeeded | 冲突 unknown | succeeded，更新详情 | 冲突 unknown | 冲突 unknown |
++| failed | 冲突 unknown | 冲突 unknown | failed，更新详情且不重发 | 冲突 unknown |
++
++规则优先级：先校验流同步，再判 attempt。更旧 attempt 忽略；更高合法 attempt 优先于上述同尝试表，可从任何旧态进入输入态；相同 attempt 才应用表；source_conflict 对该尝试保持锁定。正常 unknown 仅表示来源不确定，不等同失败，不生成提醒。相同或较旧 task_revision、较旧 attempt 的合法连续流事件仍消耗全局游标，并可证明连接存活，但不改变任务及任务更新时间；重复旧 event_seq 不消耗也不刷新。若 sequence 合法但 task 字段本身冲突／malformed，按输入冲突处理，不借消费游标掩盖错误。
+ 
+ 更高 ordinal 必须对应不同 attempt_id；相同 ID 改 ordinal 或同 ordinal 换 ID 属输入冲突。任务列表排序不以网络到达顺序或颜色频繁抖动：建议运行中优先、失败其次、unknown 再次、成功最后，同组按稳定 task_id 排序；这是待批准显示默认。
+ 
+@@ -130,11 +147,11 @@
+ | 初次启动、未有 baseline | offline | unknown，注明模拟数据尚未加载 |
+ | connected 但未有有效 baseline | stale | 显示正在同步，不宣布已掌握当前任务 |
+ | 有效 baseline | online | 以完整快照替换当前集合 |
+-| 合法 heartbeat / event | online | 只更新相应连接或任务时间 |
++| 已有本 generation 有效 baseline，且合法连续 heartbeat / event | online | 只更新相应连接或任务时间；未同步时不得 online |
+ | 明确 disconnected | offline | 保留最后可信任务并加过期提示 |
+-| 成功连接数据超过 30 秒未更新 | stale | 保留任务，加过期提示，不产生失败提醒 |
++| 已同步且非 offline，成功输入年龄达到 30 秒 | stale | 保留任务，加过期提示，不产生失败提醒 |
+ | 恢复连接 | stale → 新 baseline 后 online | baseline 历史失败不补发；后续新事件才有资格提醒 |
+-| 切换 epoch / provider generation | stale | 丢弃旧回调，重新 baseline；不跨流拼接 |
++| 切换 epoch / provider generation 或序号缺口 | stale（若明确断线则 offline） | 丢弃旧回调／未同步增量，重新 baseline；不跨流拼接 |
+ 
+ ## 8 失败提醒规则
+ 
+@@ -142,6 +159,8 @@
+ 
+ 应用级去重键为 `(source_id, task_id, attempt_id)`，不是系统通知 request identifier。仅在已完成 baseline 的当前 generation 中，接受一个真正的新失败增量时，且此键从未处理过，才形成候选提醒。初始 baseline 和重连 baseline 中的 failed 键立即标记已观察，永不补发。
+ 
++reducer 与去重账本必须在同一串行执行域内，或提供等价原子事务：先把键置为 reserved，再调用可能异步的 sink。投递尚未完成时到达的重复／详情更新也只能看到已有 reserved，不能二次投递。completion 必须匹配 generation 与 delivery token；旧 completion 最多结束其自身旧记录，不能改变当前任务、连接、当前世代账本或移除新世代 reservation。
++
+ 同一 attempt 的失败详情更新、SSE 重放、重复回调、UI 重新展开或恢复联网都不能再次提醒。新 attempt 的失败可以提醒一次。M0 去重账本只在本进程内存保存，不写用户目录；重启后重新用 baseline 抑制历史失败。没有 baseline 时禁止提醒。
+ 
+ `denied` 或 `not_determined` 时，仅显示卡片内提示，不重复请求权限、不调用通知 sink；该失败记为 suppressed。后来变为 authorized 也不回放 suppressed 失败。投递失败或结果 uncertain 记账并停止自动重发，不能以同 identifier 再投递冒充去重。关闭后重新打开面板不重置账本；只有显式重置模拟演示才可开始新的测试世代，并保持明显模拟标识。
+@@ -150,9 +169,9 @@
+ 
+ 默认界面建议：收起态显示概览；展开态显示任务摘要、状态及最后更新时间；点卡片打开本地只读详情。颜色必须同时配文字／图标，不以红绿作为唯一信息。具体尺寸、动画曲线和品牌视觉不在本次冻结范围，不复制 Douding 资源。
+ 
+-默认只在用户显式菜单操作时选择显示器；首次使用取当前指针所在屏，失败则取系统当前主显示器。不能把 `NSScreen.main` 直接等同硬件主屏。屏幕移除、分辨率和可用工作区变化时重新计算屏幕及 visibleFrame；不能长期缓存坐标。所选屏幕断开时回退到可用主显示器，保证菜单入口可用。
+-
+-悬停展开不得抢键盘焦点，不激活其它 App、不截获全局键盘，不改变桌面 Space；需要输入或打开本地详情时只响应用户明确点击。连续移入移出、全屏应用和缩放变化不得留下不可见的点击遮挡层。菜单栏入口必须能呼出、隐藏和退出。默认不设置登录自启。
++默认只在用户显式菜单操作时选择显示器；首次使用取当前指针所在屏，失败则取系统当前主显示器。不能把 `NSScreen.main` 直接等同硬件主屏。屏幕移除、分辨率和可用工作区变化时重新计算屏幕及 visibleFrame；不能长期缓存坐标。所选屏幕断开时回退到可用主显示器，保证菜单入口可用。坐标允许负值，必须按当前屏幕坐标、缩放和可用工作区计算，不把负坐标截到零。
++
++悬停展开不得激活本 App 或取得 key window，不抢键盘焦点、不截获全局键盘、不改变桌面 Space；用户明确点击可以聚焦本 App 的本地详情。Esc 只在本 App 已获焦点时消费；非 key 的悬停面板不能偷取前台 App 的 Esc。连续移入移出、全屏应用和缩放变化不得留下不可见的点击遮挡层。菜单栏入口必须能呼出、隐藏和退出。默认不设置登录自启。
+ 
+ 详情入口与原任务入口分开：M0 本地详情始终只读；原任务不可达／未配置时按钮禁用并给原因。测试替身仅记录拟打开目标，不触发浏览器。M1 才讨论经过验证的 HTTPS 同源路径、允许的 host、路径身份及不含 token 的链接；禁止使用任意 fixture URL 打开文件、执行 scheme 或传递凭据。
+ 
+@@ -194,5 +213,7 @@
+ - 本次 Douding 上传静态检查与附录仅支持已有包结构结论，不支持运行、签名、权限或可分发结论。
+ - Apple 官方 `NSPanel`：https://developer.apple.com/documentation/appkit/nspanel
+ - Apple 官方 `MenuBarExtra`：https://developer.apple.com/documentation/swiftui/menubarextra
++- Apple 官方通知 request identifier 语义：https://developer.apple.com/documentation/usernotifications/unnotificationrequest/init(identifier:content:trigger:)
++- Apple 官方 NSScreen.main：https://developer.apple.com/documentation/appkit/nsscreen/main
+ - Apple 官方签名说明：https://developer.apple.com/library/archive/technotes/tn2206/
+ - 官方框架能力不证明本客户端已实现或验收；具体 API 可用性须在批准后的目标 SDK 编译中核对。
+--- v0.1.0-draft/ACCEPTANCE.md
++++ v0.1.1-draft/ACCEPTANCE.md
+@@ -1,6 +1,6 @@
+ # Paperclip Island 验收与协作闭环
+ 
+-版本：`paperclip-island-m0-spec-v0.1.0-draft`  
++版本：`paperclip-island-m0-spec-v0.1.1-draft`  
+ 日期：2026 年 11 月 2 日  
+ 状态：配套设计规则草案，待独立评审与用户批准  
+ 适用范围：独立私有项目的 M0 mock-only 客户端，不授 M1、发布或 Mac 执行权限
+@@ -49,9 +49,11 @@
+ 
+ ## 5 设计冻结和版本绑定
+ 
+-设计使用人可读版本与字节摘要双绑定。本版本为 `paperclip-island-m0-spec-v0.1.0-draft`。`REVIEW_MANIFEST.json` 记录 SPEC、ACCEPTANCE、schema 的 SHA-256，不在文件内自嵌其自身 hash，避免循环。
++设计使用人可读版本与字节摘要双绑定。本版本为 `paperclip-island-m0-spec-v0.1.1-draft`。`REVIEW_MANIFEST.json` 记录 SPEC、ACCEPTANCE、schema 的 SHA-256，不在文件内自嵌其自身 hash，避免循环。
+ 
+ 独立评审须直接读取这些文件，而不是只读作者摘要。结论包含版本、各文件 hash、评审范围、发现等级、阻塞项及没有检查的部分。任何规范性修改均更新版本或 revision、重算 hash，并给出相对已评审基线的 diff SHA-256。旧 review 不自动覆盖新字节；纯排版修正也要记录差异，由 reviewer 判定是否仅需增量复核。
++
++产品最终验收仅接受 **clean committed tree**：执行前后确认 HEAD/tree 与记录一致、无 tracked 修改或产品范围内 untracked 文件。dirty 工作区、未提交补丁和 untracked 产物只能作为诊断旁证，不能进入最终验收证据或补上某个 pass；不为获取 clean 而自动删除／覆盖文件。
+ 
+ 产品阶段同时绑定 repo、base/head commit、tree、规范化 diff hash、构建产物 hash、spec hash 与测试证据。这里的 diff hash 建议对保留的 `git diff --binary --full-index <base> <head>` 输出原始字节求 SHA-256；不凭手工摘要替代。尚无仓库／源码时字段为 null 且 subject.kind 为 design-only，不能填虚构 SHA。
+ 
+@@ -66,7 +68,7 @@
+ | ST03 | running → 新 failed 增量 | failed；符合规则时仅一次模拟提醒 | 仅依颜色区分 |
+ | ST04 | running → succeeded | succeeded，更新时间正确 | 制造失败提醒 |
+ | ST05 | unknown → running / succeeded / failed | 分别正确转换；新失败仅一次 | unknown 默认为成功 |
+-| ST06 | 重复 event_seq、revision 或消息重放 | 状态不变；通知不增；任务更新时间不伪刷新 | 每次收到都更新为“刚刚” |
++| ST06 | 完全重复event_seq；连续seq但旧revision；同seq不同payload | 完全重复不刷新；旧revision仍消费游标但不改任务；不同payload使desynced | 每次收到都更新任务为“刚刚”、误报后继缺口 |
+ | ST07 | 旧 event/revision/attempt 晚到 | 忽略；不覆盖新尝试 | 状态倒退 |
+ | ST08 | 同 attempt 终态后 running 或反向终态 | unknown＋source_conflict，等待新 baseline | 任选后到状态、误绿 |
+ | ST09 | failed 后更高 ordinal 的新 attempt | 新 running 可见；新 attempt 失败可再提醒一次 | 旧账本吞新失败 |
+@@ -80,7 +82,11 @@
+ | ST17 | reconnect 后旧回调、新 baseline | 旧 generation 丢弃；新 baseline 后才 online | 旧结果污染新视图 |
+ | ST18 | epoch 变化 | 重建 baseline；历史失败不回放 | 跨 epoch 共用游标 |
+ | ST19 | 墙钟倒退或跳进 | 事件按序号，freshness 按单调时钟 | 负年龄、乱序、重复提醒 |
+-| ST20 | 解析错误／无效 heartbeat | 不刷新成功时间，最终按阈值 stale | 无限显示 online |
++| ST20 | 解析错误／无效 heartbeat | 不刷新成功时间；新输入破坏连续性则 desynced，等 baseline | 无限显示 online |
++| ST21 | baseline seq10，B的12先于A的11；或中间事件丢失 | 12不应用不通知；stale/desynced；11不解锁，等新baseline | 漏A仍online |
++| ST22 | baseline前heartbeat；disconnect后迟到heartbeat/event；30秒timer | 不online；offline不会被timer变stale；新baseline才恢复 | 迟到回调复活连接 |
++| ST23 | 同attempt四状态×四状态；任意旧态接更高合法attempt | 与SPEC完整矩阵一致；unknown不提醒；冲突锁仅baseline/新attempt解 | 实现者自行猜状态 |
++| ST24 | 睡眠／唤醒，随后旧回调和新baseline | 唤醒先过期／重新同步，保留任务；旧回调无效；不回放失败 | 睡醒仍虚假新鲜 |
+ 
+ ## 7 提醒与入口验收
+ 
+@@ -94,6 +100,7 @@
+ | NT06 | 应用重启且 baseline 有旧失败 | 不补发；新 live failure 另按规则 |
+ | NT07 | 不同 source 相同 task/attempt ID | 身份隔离，不错误去重 |
+ | NT08 | 有相同系统 identifier 的多次逻辑调用 | 应用账本阻止重复；不能靠系统 identifier 作为唯一防线 |
++| NT09 | sink悬挂时并发失败／详情更新；重置后旧completion | 调用前原子reserved，全程恰好1次；旧completion不改当前世代 |
+ | LK01 | 点击卡片 | 只打开本地摘要详情，不发网络请求 |
+ | LK02 | 原任务未配置／不可达 | 原任务按钮禁用并有原因 |
+ | LK03 | fixture 含 file/javascript/custom scheme、跨 host 或带凭据目标 | 不导航；测试 sink 也标为拒绝 |
+@@ -105,8 +112,8 @@
+ 
+ | ID | 场景 | 必须证据与结果 |
+ | --- | --- | --- |
+-| UI01 | 悬停反复开合、点击、Esc、菜单呼出 | 不抢其它 App 焦点；无隐形拦截层；能退出 |
+-| UI02 | 无刘海屏、外接屏、屏幕断开、分辨率变更 | 重新计算工作区；回退到可见屏；菜单入口可用 |
++| UI01 | 悬停反复开合、点击、Esc、菜单呼出 | hover不激活/取key；明确点击可聚焦详情；Esc仅本App已有焦点时消费；无隐形拦截层；能退出 |
++| UI02 | 无刘海屏、外接屏、热插拔、负坐标、缩放/分辨率变更 | 重算当前工作区及缩放，不截负坐标；回退可见屏；菜单入口可用 |
+ | UI03 | 全屏 App / Space 切换 | 不强制改变 Space 或激活其它 App；失效时可退回菜单 |
+ | UI04 | 长标题、空摘要、Unicode、缩放、浅深色 | 文本可读、不裁掉关键状态；不用纯颜色表达 |
+ | UI05 | VoiceOver 标签、键盘导航本地面板 | 常规可访问性语义，无申请 Accessibility 控制权限 |
+@@ -127,14 +134,20 @@
+ - repo、base/head/tree/diff 与产物摘要；不存在时明确 null 和原因。
+ - run ID、操作者、起止时间、环境 ID、OS、CPU、SDK／工具链版本及权限范围。
+ - 每项 check 的 ID、实际方法、mock／静态／真实级别、结果、退出码、日志／截图引用与摘要。
+-- 屏幕证据仅使用虚构数据；截图需说明设备、分辨率、缩放、构建产物和实际步骤。
++- 屏幕证据仅使用虚构数据，限定本 App 窗口，不捕获私人桌面／其它 App；截图需说明设备、分辨率、缩放、构建产物和实际步骤，实际截取另须授权。
+ - 所有 blocked/not_run/uncertain、发现等级、责任人和下一最小条件；不得只交成功摘录。
+ - 独立 reviewer 身份、未参与声明、精确被审字节、问题清单和增量修复复核。
+ - gate 逐项状态，不设一个吞掉未知项的 overall_green。
+ 
+ 不把秘密、完整私人路径、业务正文或真实账号截图写入证据包。工具输出必须保留能核验结果的必要内容，敏感字段只用脱敏说明且不谎称已独立验证被遮挡部分。完整原日志若需受限保留，记录受限位置与权限，不公开上传。
+ 
+-Schema 校验本身只证明结构符合，不证明测试真的执行。mock pass 不能满足 real-required gate；对引用文件还需检查存在、hash 一致及内容与声明相符。缺少任何绑定时相应 gate blocked。
++Schema 校验本身只证明结构符合，不证明测试真的执行。mock pass 不能满足 real-required gate。
++
++**必经 fail-closed 语义核验**：每个 gate 放行前，独立 reviewer 必须逐项核实际文件存在和重算 hash、源码/产物/被审版本相同、运行前后 clean、原始批准的身份与范围、引用可解析且唯一、actor 无作者/审者重合、全部必需验收 ID 和架构覆盖齐全、命令退出码及输出真实对应。任一 required check 为 fail/blocked/not_run 或缺失，该 gate 不得 pass；同类混合 pass/fail 不能挑成功项。任何项无法核验即 blocked，不以 schema valid 代替。这次核验必须有独立签名记录／评审产物引用（这里“签名”指具名结论，不要求或冒充密码学签名）。
++
++`required_for_current_milestone` 来源为已批准规格，不是填表者的可选开关。M0 完整验收所需 G0–G9 均不可自行标 false；REAL-NOTIFY、M1、RELEASE 的独立范围不因此变必需。更改必需集合只能由用户明确批准新版本。`spec.approval_refs` 仅引用 `authorization.approval_records[].id` 中 scope 含 `design_approval` 的记录；只批准设计绝不授 product_implementation/macOS_run 等许可。schema 不支持跨数组动态引用，故该关系必须人工语义核验。
++
++schema gate 与正文映射：`design_approval=G2`，`implementation_approval=G3`，`mock_acceptance=G4`，`macos_build=G5`，`macos_capture` 与 `macos_device_acceptance` 共同组成 G6，`macos_signing=G7`。`independent_review` 在 design-only 包代表 G1，在 code-validation 包代表 G8，不能相互替代。G0 放在版本化 REVIEW_MANIFEST 的作者检查；G9、REAL-NOTIFY、RELEASE 在独立的 `GATE_REGISTER.md` 逐项记录精确版本、状态、批准引用、证据引用、阻塞及 owner；M1 对应 real_api_acceptance 但真实阶段规格另批。每个正式交付包须同时带 gate register；缺它不能宣称完整验收。这些字段不是漏掉便自动通过。
+ 
+ ## 10 Gate 和 Definition of Done
+ 
+@@ -156,7 +169,7 @@
+ 
+ M0 逻辑完成的 DoD 仅为 G4，并必须标记“mock-only”。M0 可交互原型完成需 G4–G8 对批准支持范围全部通过，且未通过架构不得宣传支持。若只有一个架构实机可用，报告该覆盖并请求用户决定收窄目标或继续等待，不能自己豁免另一架构。项目完整 M0 验收还需 G9；这仍不授权 M1 或发布。
+ 
+-P1：越权、凭据暴露、真实任务写入、隐式后台、错误版本交付等安全／数据问题。P2：错误终态、重复提醒、乱序污染、不可退出、关键平台声明无证据等实质功能／验收问题。P3：不影响边界的文案或视觉问题。P1/P2 必须关闭；P3 可由用户明确接受保留，不能改标签掩盖缺陷。
++P1：越权、凭据暴露、真实任务写入、隐式后台、错误版本交付等安全／数据问题。P2：错误终态、重复提醒、乱序污染、不可退出、关键平台声明无证据等实质功能／验收问题。P3：不影响边界的文案或视觉问题。schema 映射为 critical=P1、major=P2、minor=P3、informational=非阻断说明。P1/P2 必须 resolved，不能以 accepted_risk 放行；P3 可由用户明确接受保留，不能改标签掩盖缺陷。
+ 
+ ## 11 闭环流程
+ 
+@@ -171,4 +184,4 @@
+ 
+ ## 12 当前交付状态
+ 
+-本次交付只有设计文档。文档 JSON／链接／覆盖检查将单列为作者自检，不计入产品 ST/NT/LK/UI 或任何 macOS gate。所有产品代码、fixture 实现、编译、运行、签名、截图与真实数据接入均未执行。评审结论和用户设计批准尚未发生，后续必须由实际记录更新，不能预填绿色。
++本次交付只有设计文档。文档 JSON／结构／覆盖检查将单列为作者自检，不计入产品 ST/NT/LK/UI 或任何 macOS gate。所有产品代码、fixture 实现、编译、运行、签名、截图与真实数据接入均未执行。评审结论和用户设计批准尚未发生，后续必须由实际记录更新，不能预填绿色。
+--- v0.1.0-draft/EVIDENCE.schema.json
++++ v0.1.1-draft/EVIDENCE.schema.json
+@@ -1,14 +1,14 @@
+ {
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+-  "$id": "urn:paperclip-island:evidence-schema:1.0.0",
++  "$id": "urn:paperclip-island:evidence-schema:1.0.1",
+   "title": "Paperclip Island acceptance evidence package schema",
+   "description": "Non-product design document. This schema contains no test results and grants no authority. M0 is mock-data-only; product implementation, macOS execution and notifications require separate explicit approval. Real credentials and APIs are M1-only and separately authorized. Mock green does not establish compilation, signing, native capture, device acceptance, or real API success. Missing experiments remain not_run or blocked; skipped is never pass.",
+-  "$comment": "Draft 2020-12 structural constraints only. Before accepting an instance, separately verify original authorization, SHA256 values against delivered bytes, spec/acceptance version agreement, full source reproducibility and untracked-file coverage, ID uniqueness by field, every artifact/command/check/actor reference, command exit assertions and timestamps, actor identity independence, reviewer scope and reviewed-source equality, gate-to-check category/status agreement, and complete acceptance-ID coverage. format may be annotation-only: use a validator with date-time format checking. No generated sample evidence or placeholder digest is valid evidence. JSON parsing alone is not JSON Schema conformance validation or product acceptance.",
++  "$comment": "Draft 2020-12 structural constraints only. Before accepting an instance, separately verify original authorization, SHA256 values against delivered bytes, spec/acceptance version agreement, full source reproducibility and untracked-file coverage, ID uniqueness by field, every artifact/command/check/actor reference, command exit assertions and timestamps, actor identity independence, reviewer scope and reviewed-source equality, gate-to-check category/status agreement, and complete acceptance-ID coverage. format may be annotation-only: use a validator with date-time format checking. No generated sample evidence or placeholder digest is valid evidence. JSON parsing alone is not JSON Schema conformance validation or product acceptance. Final code-validation accepts clean committed source only; dirty evidence is diagnostic outside this acceptance schema. Mandatory fail-closed semantic review and the companion GATE_REGISTER.md are required by ACCEPTANCE.md; schema validity alone never opens a gate.",
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+     "schema_version": {
+-      "const": "1.0.0"
++      "const": "1.0.1"
+     },
+     "project": {
+       "type": "object",
+@@ -61,7 +61,8 @@
+             "$ref": "#/$defs/id"
+           },
+           "uniqueItems": true,
+-          "maxItems": 10000
++          "maxItems": 10000,
++          "description": "IDs in authorization.approval_records with design_approval scope. Verify exact reference resolution and approved version/hash semantically. Design-only approval does not grant implementation or execution."
+         }
+       },
+       "required": [
+@@ -218,7 +219,7 @@
+             "untracked_files",
+             "unavailable_reason"
+           ],
+-          "description": "Bind the exact tested source. commit/tree/base are full Git object IDs; tree is the committed tree. diff_sha256 hashes the exact archived binary-capable diff bytes against base, including tracked working-tree changes. Archive and hash every untracked file separately. No repository or unobserved value may be invented. Cross-reference and recompute hashes in semantic review."
++          "description": "Final code-validation binds a clean committed tree. diff_sha256 hashes the exact archived git diff --binary --full-index base commit bytes; no working-tree patch or untracked source is accepted. Dirty records are diagnostic-only outside this final acceptance schema. Recompute all hashes and verify clean before/after execution in semantic review."
+         }
+       },
+       "required": [
+@@ -307,13 +308,13 @@
+                     "$ref": "#/$defs/id"
+                   },
+                   "worktree_state": {
+-                    "enum": [
+-                      "clean",
+-                      "dirty"
+-                    ]
++                    "const": "clean"
+                   },
+                   "unavailable_reason": {
+                     "type": "null"
++                  },
++                  "untracked_files": {
++                    "maxItems": 0
+                   }
+                 }
+               }
+@@ -644,6 +645,7 @@
+                 "type": "array",
+                 "items": {
+                   "enum": [
++                    "design_approval",
+                     "product_implementation",
+                     "macos_run",
+                     "notifications",
+@@ -1174,7 +1176,8 @@
+                   }
+                 }
+               }
+-            ]
++            ],
++            "description": "Severity mapping: critical=P1, major=P2, minor=P3. Critical/major findings must be resolved before review pass; accepted_risk cannot waive them. Minor accepted_risk requires explicit user acceptance, verified semantically against its referenced approval."
+           },
+           "maxItems": 10000
+         }
+@@ -1277,7 +1280,9 @@
+                         ]
+                       },
+                       "status": {
+-                        "const": "open"
++                        "not": {
++                          "const": "resolved"
++                        }
+                       }
+                     },
+                     "required": [
+@@ -1297,16 +1302,52 @@
+       "additionalProperties": false,
+       "properties": {
+         "design_approval": {
+-          "$ref": "#/$defs/gate"
++          "$ref": "#/$defs/gate",
++          "allOf": [
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
++            }
++          ]
+         },
+         "implementation_approval": {
+-          "$ref": "#/$defs/gate"
++          "$ref": "#/$defs/gate",
++          "allOf": [
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
++            }
++          ]
+         },
+         "independent_review": {
+-          "$ref": "#/$defs/gate"
++          "$ref": "#/$defs/gate",
++          "allOf": [
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
++            }
++          ]
+         },
+         "mock_acceptance": {
+-          "$ref": "#/$defs/gate"
++          "$ref": "#/$defs/gate",
++          "allOf": [
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
++            }
++          ]
+         },
+         "macos_build": {
+           "allOf": [
+@@ -1324,6 +1365,13 @@
+                   ]
+                 }
+               }
++            },
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
+             }
+           ]
+         },
+@@ -1343,6 +1391,13 @@
+                   ]
+                 }
+               }
++            },
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
+             }
+           ]
+         },
+@@ -1362,6 +1417,13 @@
+                   ]
+                 }
+               }
++            },
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
++                }
++              }
+             }
+           ]
+         },
+@@ -1379,6 +1441,13 @@
+                     "blocked",
+                     "not_run"
+                   ]
++                }
++              }
++            },
++            {
++              "properties": {
++                "required_for_current_milestone": {
++                  "const": true
+                 }
+               }
+             }
+@@ -2264,7 +2333,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "mock_behavior"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2305,7 +2392,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "macos_build"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2346,7 +2451,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "macos_signing"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2387,7 +2510,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "macos_capture"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2428,7 +2569,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "macos_device_acceptance"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2469,7 +2628,25 @@
+                 "status"
+               ]
+             },
+-            "minContains": 1
++            "minContains": 1,
++            "not": {
++              "contains": {
++                "properties": {
++                  "category": {
++                    "const": "real_api"
++                  },
++                  "status": {
++                    "not": {
++                      "const": "pass"
++                    }
++                  }
++                },
++                "required": [
++                  "category",
++                  "status"
++                ]
++              }
++            }
+           }
+         }
+       }
+@@ -2516,6 +2693,124 @@
+               ]
+             },
+             "minContains": 1
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "properties": {
++          "subject": {
++            "properties": {
++              "kind": {
++                "const": "code-validation"
++              }
++            }
++          }
++        },
++        "required": [
++          "subject"
++        ]
++      },
++      "then": {
++        "properties": {
++          "review": {
++            "properties": {
++              "independent_reviewers": {
++                "items": {
++                  "properties": {
++                    "reviewed_source_commit": {
++                      "$ref": "#/$defs/gitObjectId"
++                    }
++                  }
++                }
++              }
++            }
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "properties": {
++          "project": {
++            "properties": {
++              "milestone": {
++                "const": "M0"
++              }
++            }
++          }
++        },
++        "required": [
++          "project"
++        ]
++      },
++      "then": {
++        "properties": {
++          "gates": {
++            "properties": {
++              "real_api_acceptance": {
++                "properties": {
++                  "required_for_current_milestone": {
++                    "const": false
++                  }
++                }
++              }
++            }
++          }
++        }
++      },
++      "else": {
++        "properties": {
++          "gates": {
++            "properties": {
++              "real_api_acceptance": {
++                "properties": {
++                  "required_for_current_milestone": {
++                    "const": true
++                  }
++                }
++              }
++            }
++          }
++        }
++      }
++    },
++    {
++      "if": {
++        "properties": {
++          "spec": {
++            "properties": {
++              "design_approval": {
++                "const": "approved"
++              }
++            }
++          }
++        },
++        "required": [
++          "spec"
++        ]
++      },
++      "then": {
++        "properties": {
++          "authorization": {
++            "properties": {
++              "approval_records": {
++                "contains": {
++                  "properties": {
++                    "scopes": {
++                      "contains": {
++                        "const": "design_approval"
++                      }
++                    }
++                  },
++                  "required": [
++                    "scopes"
++                  ]
++                },
++                "minContains": 1
++              }
++            }
+           }
+         }
+       }

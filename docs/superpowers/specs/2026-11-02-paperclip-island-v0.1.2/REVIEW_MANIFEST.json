@@ -1,0 +1,57 @@
+{
+  "kind": "design-review-manifest",
+  "spec_version": "paperclip-island-m0-spec-v0.1.2-draft",
+  "schema_version": "1.0.1",
+  "created_at": "2026-11-02T14:38:14Z",
+  "files": [
+    {
+      "path": "SPEC.md",
+      "bytes": 24093,
+      "sha256": "3013a59f43f5efcb8349a3b0d37026a87ef9ca7bc3dc99290ddba820639214cc"
+    },
+    {
+      "path": "ACCEPTANCE.md",
+      "bytes": 20412,
+      "sha256": "c66ecb2963aacabd274d839421353ec2cb8074b54e8f2faa2de0cd35b8a241c2"
+    },
+    {
+      "path": "EVIDENCE.schema.json",
+      "bytes": 92384,
+      "sha256": "9528d4d5fbe2dc0662a4af755beb1f6a0e0e8dd672e1a5d42b1b6d390ee879cc"
+    },
+    {
+      "path": "GATE_REGISTER.md",
+      "bytes": 2304,
+      "sha256": "02c529e9d2e17f7ffdec281266b7a4850e698e696bc7d6b252167a5e1eda8d31"
+    },
+    {
+      "path": "REVIEW_RESPONSE.md",
+      "bytes": 2759,
+      "sha256": "c257251c60f031329469261bd6d6a3e7f31f6aee518283ec6f99b9125002d9d6"
+    },
+    {
+      "path": "AUTHOR_CHECKS.json",
+      "bytes": 2276,
+      "sha256": "093ac9b73c2744d05a56d524fe60b82e0384632933f866a5dad259335e96a4dd"
+    },
+    {
+      "path": "v0.1.1-to-v0.1.2.diff",
+      "bytes": 10241,
+      "sha256": "1e9ee51be800ad161bd776747bb841b101376de65a7d302c9114fca2a16472ee"
+    }
+  ],
+  "product_repo": null,
+  "product_source_commit": null,
+  "product_tests": "not_run",
+  "macos_build": "not_run",
+  "signature_verification": "not_run",
+  "screenshots": "not_run",
+  "review_status": "pending_final_incremental_review",
+  "approval_status": "pending_user_design_approval",
+  "diff_format": "Python difflib unified UTF-8 raw bytes, not Git diff; previous baseline is review-baselines/v0.1.1-draft",
+  "notes": [
+    "Only document artifacts exist; no product code or repo.",
+    "Schema meta/fragment checks do not verify a full evidence instance or product acceptance.",
+    "The manifest does not self-hash; reference files must be independently verified."
+  ]
+}

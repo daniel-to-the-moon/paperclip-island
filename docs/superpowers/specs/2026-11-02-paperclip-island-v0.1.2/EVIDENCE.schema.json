@@ -1,0 +1,3853 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:paperclip-island:evidence-schema:1.0.1",
+  "title": "Paperclip Island acceptance evidence package schema",
+  "description": "Non-product design document. This schema contains no test results and grants no authority. M0 is mock-data-only; product implementation, macOS execution and notifications require separate explicit approval. Real credentials and APIs are M1-only and separately authorized. Mock green does not establish compilation, signing, native capture, device acceptance, or real API success. Missing experiments remain not_run or blocked; skipped is never pass.",
+  "$comment": "Draft 2020-12 structural constraints only. Before accepting an instance, separately verify original authorization, SHA256 values against delivered bytes, spec/acceptance version agreement, full source reproducibility and untracked-file coverage, ID uniqueness by field, every artifact/command/check/actor reference, command exit assertions and timestamps, actor identity independence, reviewer scope and reviewed-source equality, gate-to-check category/status agreement, and complete acceptance-ID coverage. format may be annotation-only: use a validator with date-time format checking. No generated sample evidence or placeholder digest is valid evidence. JSON parsing alone is not JSON Schema conformance validation or product acceptance. Final code-validation accepts clean committed source only; dirty evidence is diagnostic outside this acceptance schema. Mandatory fail-closed semantic review and the companion GATE_REGISTER.md are required by ACCEPTANCE.md; schema validity alone never opens a gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.1"
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "Paperclip Island"
+        },
+        "milestone": {
+          "enum": [
+            "M0",
+            "M1"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "milestone"
+      ]
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/text"
+        },
+        "version": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "acceptance_path": {
+          "$ref": "#/$defs/text"
+        },
+        "acceptance_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "design_approval": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected"
+          ]
+        },
+        "approval_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000,
+          "description": "IDs in authorization.approval_records with design_approval scope. Verify exact reference resolution and approved version/hash semantically. Design-only approval does not grant implementation or execution."
+        }
+      },
+      "required": [
+        "path",
+        "version",
+        "sha256",
+        "acceptance_path",
+        "acceptance_sha256",
+        "design_approval",
+        "approval_refs"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "design_approval": {
+                "const": "approved"
+              }
+            },
+            "required": [
+              "design_approval"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "design-only",
+            "code-validation"
+          ]
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "commit": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/gitObjectId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "tree": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/gitObjectId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "base": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/gitObjectId"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "diff_sha256": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/sha256"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "diff_artifact_ref": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/id"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "worktree_state": {
+              "enum": [
+                "clean",
+                "dirty",
+                "not_applicable"
+              ]
+            },
+            "untracked_files": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "path": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "sha256": {
+                    "$ref": "#/$defs/sha256"
+                  }
+                },
+                "required": [
+                  "path",
+                  "sha256"
+                ]
+              },
+              "maxItems": 10000
+            },
+            "unavailable_reason": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "repository",
+            "commit",
+            "tree",
+            "base",
+            "diff_sha256",
+            "diff_artifact_ref",
+            "worktree_state",
+            "untracked_files",
+            "unavailable_reason"
+          ],
+          "description": "Final code-validation binds a clean committed tree. diff_sha256 hashes the exact archived git diff --binary --full-index base commit bytes; no working-tree patch or untracked source is accepted. Dirty records are diagnostic-only outside this final acceptance schema. Recompute all hashes and verify clean before/after execution in semantic review."
+        }
+      },
+      "required": [
+        "kind",
+        "source"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "design-only"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "properties": {
+                  "repository": {
+                    "type": "null"
+                  },
+                  "commit": {
+                    "type": "null"
+                  },
+                  "tree": {
+                    "type": "null"
+                  },
+                  "base": {
+                    "type": "null"
+                  },
+                  "diff_sha256": {
+                    "type": "null"
+                  },
+                  "diff_artifact_ref": {
+                    "type": "null"
+                  },
+                  "worktree_state": {
+                    "const": "not_applicable"
+                  },
+                  "untracked_files": {
+                    "maxItems": 0
+                  },
+                  "unavailable_reason": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "code-validation"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "source": {
+                "properties": {
+                  "repository": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "commit": {
+                    "$ref": "#/$defs/gitObjectId"
+                  },
+                  "tree": {
+                    "$ref": "#/$defs/gitObjectId"
+                  },
+                  "base": {
+                    "$ref": "#/$defs/gitObjectId"
+                  },
+                  "diff_sha256": {
+                    "$ref": "#/$defs/sha256"
+                  },
+                  "diff_artifact_ref": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "worktree_state": {
+                    "const": "clean"
+                  },
+                  "unavailable_reason": {
+                    "type": "null"
+                  },
+                  "untracked_files": {
+                    "maxItems": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "created_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "mode": {
+          "enum": [
+            "design_only",
+            "mock_only",
+            "macos_native_mock",
+            "real_integration"
+          ]
+        },
+        "data_mode": {
+          "enum": [
+            "none",
+            "mock",
+            "real"
+          ]
+        },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "host_os": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "host_os_version": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "host_architecture": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "target_os": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "target_architecture": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "toolchain": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "version": {
+                    "$ref": "#/$defs/text"
+                  }
+                },
+                "required": [
+                  "name",
+                  "version"
+                ]
+              },
+              "maxItems": 100
+            },
+            "device": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "limitations": {
+              "$ref": "#/$defs/text"
+            }
+          },
+          "required": [
+            "host_os",
+            "host_os_version",
+            "host_architecture",
+            "target_os",
+            "target_architecture",
+            "toolchain",
+            "device",
+            "limitations"
+          ],
+          "description": "Record observed build/run OS, architecture, and exact toolchain versions. Null means unavailable, not a guessed target. Explain unknown or untested environment attributes in limitations; hardware IDs must not expose private identifiers."
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "maxItems": 10000
+        }
+      },
+      "required": [
+        "id",
+        "created_at",
+        "mode",
+        "data_mode",
+        "environment",
+        "commands"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "design_only"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "data_mode": {
+                "const": "none"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "mock_only",
+                  "macos_native_mock"
+                ]
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "data_mode": {
+                "const": "mock"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "real_integration"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "data_mode": {
+                "const": "real"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "macos_native_mock"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "environment": {
+                "properties": {
+                  "host_os": {
+                    "const": "macOS"
+                  },
+                  "host_os_version": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "host_architecture": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "target_os": {
+                    "const": "macOS"
+                  },
+                  "target_architecture": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "toolchain": {
+                    "minItems": 1
+                  },
+                  "device": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scope_statement": {
+          "$ref": "#/$defs/text"
+        },
+        "permissions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "product_implementation": {
+              "type": "boolean"
+            },
+            "macos_run": {
+              "type": "boolean"
+            },
+            "notifications": {
+              "type": "boolean"
+            },
+            "real_credentials": {
+              "type": "boolean"
+            },
+            "real_api": {
+              "type": "boolean"
+            },
+            "task_dispatch": {
+              "const": false
+            },
+            "approval_actions": {
+              "const": false
+            },
+            "background_residency": {
+              "const": false
+            },
+            "installation": {
+              "const": false
+            },
+            "permission_changes": {
+              "const": false
+            }
+          },
+          "required": [
+            "product_implementation",
+            "macos_run",
+            "notifications",
+            "real_credentials",
+            "real_api",
+            "task_dispatch",
+            "approval_actions",
+            "background_residency",
+            "installation",
+            "permission_changes"
+          ]
+        },
+        "approval_records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "granted_by": {
+                "$ref": "#/$defs/text"
+              },
+              "granted_at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "source_ref": {
+                "$ref": "#/$defs/text"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "design_approval",
+                    "product_implementation",
+                    "macos_run",
+                    "notifications",
+                    "real_credentials",
+                    "real_api",
+                    "task_dispatch",
+                    "approval_actions",
+                    "background_residency",
+                    "installation",
+                    "permission_changes"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              },
+              "exact_scope": {
+                "$ref": "#/$defs/text"
+              }
+            },
+            "required": [
+              "id",
+              "granted_by",
+              "granted_at",
+              "source_ref",
+              "scopes",
+              "exact_scope"
+            ],
+            "description": "This is a pointer to already-existing explicit user authorization, not permission granted by the evidence author. Verify identity, wording, scope, and time against the original source."
+          },
+          "maxItems": 100
+        },
+        "restrictions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "scope_statement",
+        "permissions",
+        "approval_records",
+        "restrictions"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "product_implementation": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "required": [
+              "permissions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "product_implementation"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "macos_run": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "required": [
+              "permissions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "macos_run"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "notifications": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "required": [
+              "permissions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "notifications"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "real_credentials": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "required": [
+              "permissions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "real_credentials"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "real_api": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            "required": [
+              "permissions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "real_api"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check"
+      },
+      "minItems": 1,
+      "maxItems": 10000
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      },
+      "maxItems": 10000
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "recorded_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "role": {
+                "const": "author"
+              },
+              "contribution": {
+                "$ref": "#/$defs/text"
+              }
+            },
+            "required": [
+              "id",
+              "role",
+              "contribution"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "independent_reviewers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "status": {
+                "$ref": "#/$defs/status"
+              },
+              "reason": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "artifact_refs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                },
+                "uniqueItems": true,
+                "maxItems": 10000
+              },
+              "recorded_output": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "role": {
+                "const": "independent_reviewer"
+              },
+              "independent_of_authors": {
+                "const": true
+              },
+              "did_not_author_subject": {
+                "const": true
+              },
+              "reviewed_spec_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "reviewed_acceptance_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "reviewed_source_commit": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/gitObjectId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "status",
+              "reason",
+              "artifact_refs",
+              "recorded_output",
+              "id",
+              "role",
+              "independent_of_authors",
+              "did_not_author_subject",
+              "reviewed_spec_sha256",
+              "reviewed_acceptance_sha256",
+              "reviewed_source_commit"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "fail",
+                        "blocked",
+                        "not_run",
+                        "not_applicable"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "reason": {
+                      "$ref": "#/$defs/text"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "pass"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "artifact_refs": {
+                          "minItems": 1
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "recorded_output": {
+                          "$ref": "#/$defs/text"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "maxItems": 100
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "severity": {
+                "enum": [
+                  "critical",
+                  "major",
+                  "minor",
+                  "informational"
+                ]
+              },
+              "status": {
+                "enum": [
+                  "open",
+                  "resolved",
+                  "accepted_risk"
+                ]
+              },
+              "description": {
+                "$ref": "#/$defs/text"
+              },
+              "check_refs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                },
+                "uniqueItems": true,
+                "maxItems": 10000
+              },
+              "owner": {
+                "$ref": "#/$defs/text"
+              },
+              "resolution_artifact_refs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                },
+                "uniqueItems": true,
+                "maxItems": 10000
+              },
+              "resolution_reason": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/text"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "severity",
+              "status",
+              "description",
+              "check_refs",
+              "owner",
+              "resolution_artifact_refs",
+              "resolution_reason"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "enum": [
+                        "resolved",
+                        "accepted_risk"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "resolution_reason": {
+                      "$ref": "#/$defs/text"
+                    },
+                    "resolution_artifact_refs": {
+                      "minItems": 1
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "Severity mapping: critical=P1, major=P2, minor=P3. Critical/major findings must be resolved before review pass; accepted_risk cannot waive them. Minor accepted_risk requires explicit user acceptance, verified semantically against its referenced approval."
+          },
+          "maxItems": 10000
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "artifact_refs",
+        "recorded_output",
+        "authors",
+        "independent_reviewers",
+        "findings"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "fail",
+                  "blocked",
+                  "not_run",
+                  "not_applicable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "artifact_refs": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "recorded_output": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "independent_reviewers": {
+                "minItems": 1,
+                "items": {
+                  "properties": {
+                    "status": {
+                      "const": "pass"
+                    }
+                  }
+                }
+              },
+              "findings": {
+                "not": {
+                  "contains": {
+                    "properties": {
+                      "severity": {
+                        "enum": [
+                          "critical",
+                          "major"
+                        ]
+                      },
+                      "status": {
+                        "not": {
+                          "const": "resolved"
+                        }
+                      }
+                    },
+                    "required": [
+                      "severity",
+                      "status"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "design_approval": {
+          "$ref": "#/$defs/gate",
+          "allOf": [
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "implementation_approval": {
+          "$ref": "#/$defs/gate",
+          "allOf": [
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "independent_review": {
+          "$ref": "#/$defs/gate",
+          "allOf": [
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "mock_acceptance": {
+          "$ref": "#/$defs/gate",
+          "allOf": [
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "macos_build": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/gate"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "blocked",
+                    "not_run"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "macos_signing": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/gate"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "blocked",
+                    "not_run"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "macos_capture": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/gate"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "blocked",
+                    "not_run"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "macos_device_acceptance": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/gate"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "blocked",
+                    "not_run"
+                  ]
+                }
+              }
+            },
+            {
+              "properties": {
+                "required_for_current_milestone": {
+                  "const": true
+                }
+              }
+            }
+          ]
+        },
+        "real_api_acceptance": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/gate"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail",
+                    "blocked",
+                    "not_run"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "design_approval",
+        "implementation_approval",
+        "independent_review",
+        "mock_acceptance",
+        "macos_build",
+        "macos_signing",
+        "macos_capture",
+        "macos_device_acceptance",
+        "real_api_acceptance"
+      ],
+      "description": "Every gate remains visible, including future gates. not_applicable requires a concrete scope reason and cannot satisfy a required gate. Native/real gates without an actual authorized experiment are not_run or blocked, never inferred from a mock green result."
+    }
+  },
+  "required": [
+    "schema_version",
+    "project",
+    "spec",
+    "subject",
+    "run",
+    "authorization",
+    "checks",
+    "artifacts",
+    "review",
+    "gates"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "project": {
+            "properties": {
+              "milestone": {
+                "const": "M0"
+              }
+            }
+          }
+        },
+        "required": [
+          "project"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "real_credentials": {
+                    "const": false
+                  },
+                  "real_api": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          },
+          "run": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "design_only",
+                  "mock_only",
+                  "macos_native_mock"
+                ]
+              },
+              "data_mode": {
+                "enum": [
+                  "none",
+                  "mock"
+                ]
+              }
+            }
+          },
+          "checks": {
+            "items": {
+              "if": {
+                "properties": {
+                  "category": {
+                    "const": "real_api"
+                  }
+                },
+                "required": [
+                  "category"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  },
+                  "execution": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "gates": {
+            "properties": {
+              "real_api_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "const": "design_only"
+              }
+            }
+          }
+        },
+        "required": [
+          "run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "kind": {
+                "const": "design-only"
+              }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "product_implementation": {
+                    "const": false
+                  },
+                  "macos_run": {
+                    "const": false
+                  },
+                  "notifications": {
+                    "const": false
+                  },
+                  "real_credentials": {
+                    "const": false
+                  },
+                  "real_api": {
+                    "const": false
+                  },
+                  "task_dispatch": {
+                    "const": false
+                  },
+                  "approval_actions": {
+                    "const": false
+                  },
+                  "background_residency": {
+                    "const": false
+                  },
+                  "installation": {
+                    "const": false
+                  },
+                  "permission_changes": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          },
+          "checks": {
+            "items": {
+              "if": {
+                "properties": {
+                  "category": {
+                    "not": {
+                      "const": "design_review"
+                    }
+                  }
+                },
+                "required": [
+                  "category"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  },
+                  "execution": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "artifacts": {
+            "items": {
+              "properties": {
+                "evidence_mode": {
+                  "const": "design"
+                }
+              }
+            }
+          },
+          "gates": {
+            "properties": {
+              "implementation_approval": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "mock_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_build": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_signing": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_capture": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_device_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "real_api_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "mock_only",
+                  "macos_native_mock",
+                  "real_integration"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "kind": {
+                "const": "code-validation"
+              }
+            }
+          },
+          "spec": {
+            "properties": {
+              "design_approval": {
+                "const": "approved"
+              }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "product_implementation": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "const": "mock_only"
+              }
+            }
+          }
+        },
+        "required": [
+          "run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "macos_run": {
+                    "const": false
+                  },
+                  "notifications": {
+                    "const": false
+                  },
+                  "real_credentials": {
+                    "const": false
+                  },
+                  "real_api": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          },
+          "checks": {
+            "items": {
+              "if": {
+                "properties": {
+                  "category": {
+                    "enum": [
+                      "macos_build",
+                      "macos_signing",
+                      "macos_capture",
+                      "macos_device_acceptance",
+                      "real_api"
+                    ]
+                  }
+                },
+                "required": [
+                  "category"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  },
+                  "execution": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  },
+                  "evidence_mode": {
+                    "const": "none"
+                  }
+                }
+              }
+            }
+          },
+          "artifacts": {
+            "items": {
+              "properties": {
+                "evidence_mode": {
+                  "enum": [
+                    "design",
+                    "mock"
+                  ]
+                }
+              }
+            }
+          },
+          "gates": {
+            "properties": {
+              "macos_build": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_signing": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_capture": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "macos_device_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              },
+              "real_api_acceptance": {
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "not_run",
+                      "blocked"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "const": "macos_native_mock"
+              }
+            }
+          }
+        },
+        "required": [
+          "run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "macos_run": {
+                    "const": true
+                  },
+                  "real_credentials": {
+                    "const": false
+                  },
+                  "real_api": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          },
+          "artifacts": {
+            "items": {
+              "properties": {
+                "evidence_mode": {
+                  "enum": [
+                    "design",
+                    "mock",
+                    "native"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "const": "real_integration"
+              }
+            }
+          }
+        },
+        "required": [
+          "run"
+        ]
+      },
+      "then": {
+        "properties": {
+          "project": {
+            "properties": {
+              "milestone": {
+                "const": "M1"
+              }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "real_api": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "enum": [
+                    "macos_build",
+                    "macos_signing",
+                    "macos_capture",
+                    "macos_device_acceptance"
+                  ]
+                },
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail"
+                  ]
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "checks"
+        ]
+      },
+      "then": {
+        "properties": {
+          "run": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "macos_native_mock",
+                  "real_integration"
+                ]
+              },
+              "environment": {
+                "properties": {
+                  "host_os": {
+                    "const": "macOS"
+                  },
+                  "host_os_version": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "host_architecture": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "target_os": {
+                    "const": "macOS"
+                  },
+                  "target_architecture": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "toolchain": {
+                    "minItems": 1
+                  },
+                  "device": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "macos_run": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "independent_review": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "real_api"
+                },
+                "status": {
+                  "enum": [
+                    "pass",
+                    "fail"
+                  ]
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "checks"
+        ]
+      },
+      "then": {
+        "properties": {
+          "project": {
+            "properties": {
+              "milestone": {
+                "const": "M1"
+              }
+            }
+          },
+          "run": {
+            "properties": {
+              "mode": {
+                "const": "real_integration"
+              },
+              "data_mode": {
+                "const": "real"
+              }
+            }
+          },
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "real_api": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "design_approval": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "design_approval": {
+                "const": "approved"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "implementation_approval": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "permissions": {
+                "properties": {
+                  "product_implementation": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "mock_acceptance": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "mock_behavior"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "mock_behavior"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "macos_build": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "macos_build"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "macos_build"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "macos_signing": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "macos_signing"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "macos_signing"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "macos_capture": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "macos_capture"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "macos_capture"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "macos_device_acceptance": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "macos_device_acceptance"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "macos_device_acceptance"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "real_api_acceptance": {
+                "properties": {
+                  "status": {
+                    "const": "pass"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "gates"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "real_api"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            },
+            "minContains": 1,
+            "not": {
+              "contains": {
+                "properties": {
+                  "category": {
+                    "const": "real_api"
+                  },
+                  "status": {
+                    "not": {
+                      "const": "pass"
+                    }
+                  }
+                },
+                "required": [
+                  "category",
+                  "status"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "checks": {
+            "contains": {
+              "properties": {
+                "category": {
+                  "const": "macos_capture"
+                },
+                "status": {
+                  "const": "pass"
+                }
+              },
+              "required": [
+                "category",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "checks"
+        ]
+      },
+      "then": {
+        "properties": {
+          "artifacts": {
+            "contains": {
+              "properties": {
+                "kind": {
+                  "const": "screenshot"
+                },
+                "evidence_mode": {
+                  "const": "native"
+                }
+              },
+              "required": [
+                "kind",
+                "evidence_mode"
+              ]
+            },
+            "minContains": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "kind": {
+                "const": "code-validation"
+              }
+            }
+          }
+        },
+        "required": [
+          "subject"
+        ]
+      },
+      "then": {
+        "properties": {
+          "review": {
+            "properties": {
+              "independent_reviewers": {
+                "items": {
+                  "properties": {
+                    "reviewed_source_commit": {
+                      "$ref": "#/$defs/gitObjectId"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "project": {
+            "properties": {
+              "milestone": {
+                "const": "M0"
+              }
+            }
+          }
+        },
+        "required": [
+          "project"
+        ]
+      },
+      "then": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "real_api_acceptance": {
+                "properties": {
+                  "required_for_current_milestone": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "gates": {
+            "properties": {
+              "real_api_acceptance": {
+                "properties": {
+                  "required_for_current_milestone": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "design_approval": {
+                "const": "approved"
+              }
+            }
+          }
+        },
+        "required": [
+          "spec"
+        ]
+      },
+      "then": {
+        "properties": {
+          "authorization": {
+            "properties": {
+              "approval_records": {
+                "contains": {
+                  "properties": {
+                    "scopes": {
+                      "contains": {
+                        "const": "design_approval"
+                      }
+                    }
+                  },
+                  "required": [
+                    "scopes"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "maxLength": 32768
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "gitObjectId": {
+      "type": "string",
+      "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T.*(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "status": {
+      "enum": [
+        "pass",
+        "fail",
+        "blocked",
+        "not_run",
+        "not_applicable"
+      ]
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "command": {
+          "$ref": "#/$defs/text"
+        },
+        "cwd": {
+          "$ref": "#/$defs/text"
+        },
+        "execution": {
+          "enum": [
+            "completed",
+            "blocked",
+            "not_run"
+          ]
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ended_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -255,
+          "maximum": 255
+        },
+        "output_artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "recorded_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "command",
+        "cwd",
+        "execution",
+        "started_at",
+        "ended_at",
+        "exit_code",
+        "output_artifact_refs",
+        "recorded_output",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "started_at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "ended_at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "exit_code": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "enum": [
+                  "blocked",
+                  "not_run"
+                ]
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "started_at": {
+                "type": "null"
+              },
+              "ended_at": {
+                "type": "null"
+              },
+              "exit_code": {
+                "type": "null"
+              },
+              "output_artifact_refs": {
+                "maxItems": 0
+              },
+              "recorded_output": {
+                "type": "null"
+              },
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        }
+      ],
+      "description": "Record the exact command and exit code. Never put secrets in command text or logs. A command that never started has null times and exit code; its reason is not execution output. A nonzero expected exit is allowed only when the linked check documents that assertion."
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "recorded_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "acceptance_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "minItems": 1,
+          "uniqueItems": true,
+          "maxItems": 1000
+        },
+        "category": {
+          "enum": [
+            "design_review",
+            "mock_behavior",
+            "macos_build",
+            "macos_signing",
+            "macos_capture",
+            "macos_device_acceptance",
+            "real_api"
+          ]
+        },
+        "evidence_mode": {
+          "enum": [
+            "none",
+            "design",
+            "mock",
+            "native",
+            "real"
+          ]
+        },
+        "execution": {
+          "enum": [
+            "performed",
+            "blocked",
+            "not_run",
+            "not_applicable"
+          ]
+        },
+        "runner_outcome": {
+          "enum": [
+            "passed",
+            "failed",
+            "observed",
+            "skipped",
+            "not_executed",
+            "not_applicable"
+          ]
+        },
+        "performed_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "command_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "expected": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "artifact_refs",
+        "recorded_output",
+        "id",
+        "acceptance_ids",
+        "category",
+        "evidence_mode",
+        "execution",
+        "runner_outcome",
+        "performed_by",
+        "observed_at",
+        "command_refs",
+        "expected"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "fail",
+                  "blocked",
+                  "not_run",
+                  "not_applicable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "artifact_refs": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "recorded_output": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "const": "performed"
+              },
+              "performed_by": {
+                "$ref": "#/$defs/id"
+              },
+              "observed_at": {
+                "$ref": "#/$defs/timestamp"
+              },
+              "evidence_mode": {
+                "enum": [
+                  "design",
+                  "mock",
+                  "native",
+                  "real"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "runner_outcome": {
+                "enum": [
+                  "passed",
+                  "observed"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "fail"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "runner_outcome": {
+                "enum": [
+                  "failed",
+                  "observed"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "runner_outcome": {
+                "const": "skipped"
+              }
+            },
+            "required": [
+              "runner_outcome"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "not_run",
+                  "blocked"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "not_run"
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "not_run"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "blocked"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "blocked",
+                  "not_run",
+                  "not_applicable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_mode": {
+                "const": "none"
+              },
+              "performed_by": {
+                "type": "null"
+              },
+              "observed_at": {
+                "type": "null"
+              },
+              "runner_outcome": {
+                "enum": [
+                  "skipped",
+                  "not_executed",
+                  "not_applicable"
+                ]
+              },
+              "recorded_output": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "macos_build",
+                  "macos_signing",
+                  "macos_capture",
+                  "macos_device_acceptance"
+                ]
+              },
+              "execution": {
+                "const": "performed"
+              }
+            },
+            "required": [
+              "category",
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_mode": {
+                "const": "native"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "real_api"
+              },
+              "execution": {
+                "const": "performed"
+              }
+            },
+            "required": [
+              "category",
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_mode": {
+                "const": "real"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "mock_behavior"
+              },
+              "execution": {
+                "const": "performed"
+              }
+            },
+            "required": [
+              "category",
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_mode": {
+                "const": "mock"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "design_review"
+              },
+              "execution": {
+                "const": "performed"
+              }
+            },
+            "required": [
+              "category",
+              "execution"
+            ]
+          },
+          "then": {
+            "properties": {
+              "evidence_mode": {
+                "const": "design"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "blocked"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "const": "blocked"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_run"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "const": "not_run"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "execution": {
+                "const": "not_applicable"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "macos_build",
+                  "macos_signing",
+                  "macos_capture",
+                  "macos_device_acceptance",
+                  "real_api"
+                ]
+              }
+            },
+            "required": [
+              "category"
+            ]
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "pass",
+                  "fail",
+                  "blocked",
+                  "not_run"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "enum": [
+                  "macos_build",
+                  "macos_signing"
+                ]
+              },
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "category",
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "command_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "category": {
+                "const": "macos_capture"
+              },
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "category",
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "artifact_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "path": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "media_type": {
+          "$ref": "#/$defs/text"
+        },
+        "kind": {
+          "enum": [
+            "source_diff",
+            "source_file",
+            "command_log",
+            "test_report",
+            "screenshot",
+            "build_product",
+            "signing_report",
+            "review_report",
+            "other"
+          ]
+        },
+        "evidence_mode": {
+          "enum": [
+            "design",
+            "mock",
+            "native",
+            "real"
+          ]
+        },
+        "produced_by_run_id": {
+          "$ref": "#/$defs/id"
+        },
+        "captured_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "redaction": {
+          "enum": [
+            "not_needed",
+            "redacted"
+          ]
+        },
+        "description": {
+          "$ref": "#/$defs/text"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "sha256",
+        "bytes",
+        "media_type",
+        "kind",
+        "evidence_mode",
+        "produced_by_run_id",
+        "captured_at",
+        "redaction",
+        "description"
+      ],
+      "description": "Hash the exact delivered bytes, after any privacy redaction; record what redaction limits. A mock image is not a native screenshot. No credentials or tokens may appear in evidence. Semantic review checks size, hash, provenance, retention, and local reference resolution."
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifact_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "recorded_output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "check_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "uniqueItems": true,
+          "maxItems": 10000
+        },
+        "required_for_current_milestone": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "status",
+        "reason",
+        "artifact_refs",
+        "recorded_output",
+        "check_refs",
+        "required_for_current_milestone"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "fail",
+                  "blocked",
+                  "not_run",
+                  "not_applicable"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reason": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "artifact_refs": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "recorded_output": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "pass"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "check_refs": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "not_applicable"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "required_for_current_milestone": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

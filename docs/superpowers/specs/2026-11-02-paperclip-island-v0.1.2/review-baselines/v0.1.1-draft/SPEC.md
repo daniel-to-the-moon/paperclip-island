@@ -1,0 +1,219 @@
+# Paperclip Island 只读客户端设计规格
+
+版本：`paperclip-island-m0-spec-v0.1.1-draft`  
+日期：2026 年 11 月 2 日  
+状态：待独立设计评审，待用户批准设计；不是实施许可  
+作者：设计作者；评审人必须未参与本文及产品实现  
+配套文件：`ACCEPTANCE.md`、`EVIDENCE.schema.json`、`REVIEW_MANIFEST.json`
+
+## 1 结论与授权状态
+
+采用独立的 Paperclip 只读 macOS 灵动岛客户端，不修改 Douding，不并入 `van-sticker-studio`。先交付 M0 离线模拟版，用虚构任务证明状态、提醒和入口行为；真实 Paperclip 连接属于 M1，必须另行批准。
+
+用户已选择独立客户端，并于 2026 年 11 月 2 日 14:09 UTC 要求独立仓库、spec、验收闭环和其他 agent 评审；14:11 UTC 同意独立私有仓库及 spec 评审路线。**用户尚未审阅或批准本设计。** 当前只编写和评审文档，不创建产品代码、项目、脚手架、依赖或仓库。本阶段没有 Mac 安装、运行、系统授权、后台服务、网络通道或凭据操作。
+
+仓库默认建议名为 `paperclip-island`，可见性为私有。仓库尚未创建；实际 owner/name、创建时机和文档落点由用户确认或主协调者在已有明确许可内落实。现有项目的依赖准备、CI、修复、合并、Cloudflare 发布及 Mac 例外权限均不转移到本项目。
+
+本规格中的技术栈、状态数据契约、阈值、界面和流程是待批准的设计建议。用户批准须绑定最终规格版本及文件摘要，不能把“独立做”解释成批准全部细节。
+
+## 2 目的与成功标准
+
+用户不必持续盯着完整网页看板，就能知道哪些任务仍在运行、哪些明确失败、数据是否过期，并查看精简详情。客户端只展示可靠状态，不替用户批准、派工或停止任务。
+
+成功不是出现一个绿色圆点，而是同时满足：状态来源和新鲜度明确；重复、乱序和断线不产生假完成；提醒不刷屏；不抢占当前工作；没有隐藏后台、真实业务数据或越权操作；每个验收结论可追溯到精确版本和实际证据。
+
+## 3 已有事实与方案选择
+
+Douding 1.6.3 的静态检查确认其 Bundle ID 为 `com.liyuhe.douding`，包内有 WebKit 岛体及 API 1.4.5。该 API 面向已登录本机豆包工作客户端，不是通用 Paperclip 插件。其 API 启用涉及用户 LaunchAgent，原生桥接源码未取得。包内说明自述 ad-hoc、未公证，不能当作系统签名验证。静态分析附录：Library `libfile_9b35b76762ec8191827944fe06b3bcda`。
+
+| 方案 | 收益 | 代价与结论 |
+| --- | --- | --- |
+| 修改 Douding 安装包 | 可利用现有外观和部分可读资源 | 原生桥接缺源码，豆包耦合、改签名、更新覆盖及分发许可不明；不作为长期底座 |
+| 独立 SwiftUI 与 AppKit 客户端 | 数据边界清楚，可独立测试、维护和回滚 | 需要新建 UI 与状态适配；推荐，并已由用户选择独立路线 |
+| 独立 AppKit 与 WebKit 客户端 | 布局动画迭代方便 | 增加网页桥接、导航和凭据隔离责任；保留为备选，不默认复制旧包资源 |
+
+本项目独立编写代码和视觉资源，不以用户提供安装包推定第三方代码、图标或品牌可重新分发。不关闭 Gatekeeper、不修改 quarantine、不伪装原发布者、不补丁绕过许可或安全控制。
+
+## 4 阶段与非目标
+
+### M0 离线模拟只读客户端
+
+- 使用随测试或演示包提供的虚构 fixture，持续显示“模拟数据”标识。
+- 展示 `running`、`succeeded`、`failed`、`unknown`，并独立展示连接 `online`、`offline`、`stale`。
+- 显示更新时间；卡片可打开本地摘要详情。
+- 模拟失败提醒、授权拒绝、去重、乱序、旧回调及离线恢复。
+- “打开原任务”在 M0 中禁用；深链行为只通过测试替身记录，不能打开真实业务 URL。
+- M0 产品路径不发 HTTP、SSE、WebSocket、DNS 请求，不读取 Keychain 或实际 token，不扫描私人目录、聊天或豆包会话。
+- M0 不请求 macOS 通知权限、不发送真实系统通知。通知能力通过可注入的模拟 sink 验证；真实系统通知另列待验门禁。
+- 无 LaunchAgent、登录项、自启、隐藏辅助进程或独立后台监听；退出后所有本应用计时器、订阅和工作结束。
+
+### M1 真实只读数据接入
+
+不属于本次实施范围。前置为：后端实际可达、固定服务版本的只读契约已核实、最小只读身份和安全存储方案获批、数据可见范围明确、通知与运行窗口获批。原 Paperclip 后端和 PostgreSQL 不因桌面入口而消失；云端 localhost 也不会自动对 Mac 可达。
+
+### 明确非目标
+
+完整原生看板、审批／派工／发送／停止／重试任务、修改模型或预算、创建用户、代理配对、迁移数据库、部署公网、安装 Docker、接管 Douding 或豆包、自动更新器、遥测、全局快捷键监听、Accessibility、录屏、完整磁盘访问、后台常驻均不在 M0。产品构建、安装、分发、合并、生产发布及费用各按独立授权执行。
+
+## 5 技术方向与运行边界
+
+建议使用 SwiftUI 作为卡片与本地详情视图，AppKit `NSPanel` 处理顶部浮层和焦点；菜单栏入口作为无刘海屏或浮层不可见时的备用入口。`MenuBarExtra` 或 `NSStatusItem` 的最终选择由实现计划给出理由，不在文档阶段创建 Xcode 项目。
+
+拟议最低系统为 macOS 14，目标架构为 x86_64 与 arm64。两架构支持是目标，不是已经验证的事实：交叉编译成功、通用包包含两个 slice、两种 CPU 的实机运行是三种不同证据。不能用 Linux 测试代替 macOS 构建，也不能用 Intel 实机替代 Apple Silicon 实机。
+
+M0 优先只用系统框架，不增加第三方运行时或包管理依赖。仅后续获批准的实施计划可指定产品文件和构建命令。依赖解析、下载、网络访问和安装仍要在本项目权限边界内明确，不能复用旧项目授权。
+
+建议模块边界是设计责任划分，不是现在要创建的目录：
+
+1. `MockProvider`：虚构快照、增量和连接事件；无网络实现。
+2. `StateReducer`：纯状态变换、版本校验、乱序防护和新鲜度。
+3. `FailureNotifier`：应用级去重和模拟通知 sink。
+4. `IslandPresentation`：浮层、菜单栏、本地详情和可访问性标签。
+5. `DetailDestination`：M0 禁用真实导航并验证测试替身；M1 再增加受限目标验证。
+
+数据流单向：fixture → provider → reducer → 只读 view state → UI；提醒从已接受的状态事件派生。UI 不能直接写 provider 状态或绕过 reducer。
+
+## 6 M0 数据契约
+
+以下为内部 fixture 契约，不宣称与任何当前 Paperclip API 一致。M1 必须有单独适配与契约测试。
+
+| 字段 | 规则 |
+| --- | --- |
+| `source_id` | 虚构数据源命名空间；去重和任务身份的一部分 |
+| `stream_epoch` | 数据流世代；更换时必须先建立新 baseline，不能接着用旧游标 |
+| `event_seq` | 当前 epoch 内的全局连续非负整数；baseline 给出游标，之后每条 task_update／heartbeat 来源事件必须等于游标＋1；本地连接事件不占序号；不按墙钟排序 |
+| `kind` | `baseline`、`task_update`、`connected`、`disconnected`、`heartbeat` |
+| `task_id` | 不透明稳定 ID；不得从标题推导 |
+| `attempt_id` / `attempt_ordinal` | 一次执行的稳定 ID 与单调递增序号；不同尝试不能混为同一失败 |
+| `task_revision` | 同一尝试内的递增版本；重复或更旧版本不覆盖新状态 |
+| `task_state` | `running`、`succeeded`、`failed`、`unknown` |
+| `title` / `summary` | 虚构短文本；仅按纯文本展示，不解释 HTML 或执行链接 |
+| `received_at` | 被接受事件的本地显示时间；“最后更新”不使用请求开始时间冒充 |
+| `source_updated_at` | 可选，仅作来源时间展示，不决定事件顺序 |
+| `detail_target` | M0 固定为 unavailable，或仅供测试的标记值，不含真实 URL／凭据 |
+
+按 kind 区分字段：所有事件带本地 provider_generation 和 source_id；本地 `connected`／`disconnected` 只描述连接，不携带或消耗来源 event_seq，不要求 task 字段。`baseline` 带 stream_epoch、event_seq 水位和完整 tasks 数组，每个 task 必须有 task/attempt/revision/state；水位是快照已包含的最后来源事件序号，不表示列表长度。`task_update` 必须带 epoch、event_seq 和单个完整 task 字段；`heartbeat` 必须带 epoch、event_seq，但没有 task/attempt/revision。received_at 由接收端生成，不信任 fixture 自报的“现在”。初次合法 baseline 可直接建立同步；明确断线后必须先有本地 connected 和新 generation，再接受新 baseline。
+
+`baseline` 是完整替换快照，必须有新的 generation 与有效 epoch。空 baseline 表示“暂无任务”，不代表历史任务成功。增量缺少必填 ID、未知状态、负数序号或冲突字段时拒绝该增量并记录脱敏诊断，不把它变成成功。重复任务键且内容不同的 baseline 整体拒绝，不部分拼接。
+
+有效 baseline 原子建立本 generation 的同步资格和最后 event_seq。任何缺口（收到的序号大于游标＋1）或无法安全解析的预期新事件，均不应用任务变化、不提醒，撤销同步资格并标记 desynced／stale，等待新的完整 baseline；不在 M0 增加缓冲重排或补请求。完全相同的较旧／重复来源事件直接丢弃且不刷新时间；同一 generation 内保留已见 seq 的规范化来源字段用于比较（排除本地接收时间），相同 seq 却不同 payload 属冲突，撤销同步资格并等待新 baseline，不能当正常重复。跨任务也使用同一游标，因此不能先应用 task B 的 seq 12 再永久丢掉 task A 的 seq 11。
+
+每次 provider 重新建立或手动重置 fixture 都产生新的本地 `provider_generation`。过期 generation 的响应、计时器和回调一律丢弃。更新取消并不证明回调不会迟到，故 reducer 仍必须做 generation 校验。
+
+## 7 状态机与新鲜度
+
+### 双轴模型
+
+任务状态与连接状态独立。离线时保留最后已知任务状态和时间，同时显示“离线，状态可能已变化”，不得把 running 改成 failed，不得把 failed 改成 succeeded。没有可信 baseline 时任务为 unknown。
+
+新鲜度建议默认 `stale_after = 30 秒`（年龄达到 30 秒即 stale），作为可注入时钟参数供确定性测试，待用户批准后冻结。30 秒是显示阈值，不是网络重试授权、任务超时或终止条件。没有数据更新但有效 heartbeat 到达，可保持连接 online；任务各自的更新时间不因此改变。
+
+使用单调时钟计算过期，墙钟只展示日期时间。系统时钟前后跳不能使状态倒退、年龄显示负数或制造通知。只有当前 generation 已具有效 baseline 且同步资格完整时，合法连续事件／heartbeat 才推进连接成功时间。无 baseline、已断线、缺口或旧 generation 的 heartbeat／增量不能恢复 online。解析失败和请求尝试不能刷新成功时间。
+
+连接优先级：明确 offline 高于 stale 定时器；offline 不会因时间流逝或迟到 heartbeat 变成 stale／online。disconnected 立即撤销同步资格；恢复连接只能先进入 stale／同步中，再以新 generation 的完整 baseline 恢复 online。睡眠唤醒也按需要重新同步处理，保持最后已知任务但标 stale（原为 offline 则仍 offline），用新的 generation／baseline 恢复，不回放历史提醒；不依赖睡眠时计时器是否按时触发。
+
+### 任务转换
+
+| 当前 | 输入 | 下一状态及动作 |
+| --- | --- | --- |
+| 未初始化 | 有效 baseline | 按快照建立任务；不提醒历史失败 |
+| unknown | 新版本 running | running；记录时间，不提醒 |
+| unknown / running | 新版本 succeeded | succeeded；M0 不发成功系统通知 |
+| unknown / running | 新版本 failed | failed；仅满足第 8 节条件时产生一次模拟提醒 |
+| 任意 | 相同 event 或 revision | 不变；不重复提醒，不伪刷新任务时间 |
+| 任意 | 更旧 event / revision / attempt | 忽略；不回滚状态 |
+| succeeded / failed | 同 attempt 的 running、unknown 或相反终态 | unknown，标记 source_conflict；不得擅选成功，不提醒冲突 |
+| 任意，包括 source_conflict | 更高 attempt_ordinal 且新 ID 的合法 attempt | 按新尝试的四种枚举建立状态；旧失败记录不阻止新尝试的新失败提醒 |
+| 冲突 unknown | 同 attempt 普通增量 | 保持冲突，直到新的完整 baseline 或更高合法 attempt；同尝试后到事件不能解冲突 |
+| 任意 | malformed / 未知 task_state | 拒绝增量；保留最后可信值并标诊断；若破坏连续输入资格则 desynced，等新 baseline |
+
+同一合法 attempt 的完整 4×4 转换如下（输入均须通过 generation、连续序号及 revision 校验）：
+
+| 当前\输入 | running | succeeded | failed | unknown |
+| --- | --- | --- | --- | --- |
+| running | running | succeeded | failed，候选提醒 | unknown，不提醒 |
+| unknown（非冲突） | running | succeeded | failed，候选提醒 | unknown，不提醒 |
+| succeeded | 冲突 unknown | succeeded，更新详情 | 冲突 unknown | 冲突 unknown |
+| failed | 冲突 unknown | 冲突 unknown | failed，更新详情且不重发 | 冲突 unknown |
+
+规则优先级：先校验流同步，再判 attempt。更旧 attempt 忽略；更高合法 attempt 优先于上述同尝试表，可从任何旧态进入输入态；相同 attempt 才应用表；source_conflict 对该尝试保持锁定。正常 unknown 仅表示来源不确定，不等同失败，不生成提醒。相同或较旧 task_revision、较旧 attempt 的合法连续流事件仍消耗全局游标，并可证明连接存活，但不改变任务及任务更新时间；重复旧 event_seq 不消耗也不刷新。若 sequence 合法但 task 字段本身冲突／malformed，按输入冲突处理，不借消费游标掩盖错误。
+
+更高 ordinal 必须对应不同 attempt_id；相同 ID 改 ordinal 或同 ordinal 换 ID 属输入冲突。任务列表排序不以网络到达顺序或颜色频繁抖动：建议运行中优先、失败其次、unknown 再次、成功最后，同组按稳定 task_id 排序；这是待批准显示默认。
+
+### 连接转换
+
+| 输入或条件 | 连接状态 | 任务处理 |
+| --- | --- | --- |
+| 初次启动、未有 baseline | offline | unknown，注明模拟数据尚未加载 |
+| connected 但未有有效 baseline | stale | 显示正在同步，不宣布已掌握当前任务 |
+| 有效 baseline | online | 以完整快照替换当前集合 |
+| 已有本 generation 有效 baseline，且合法连续 heartbeat / event | online | 只更新相应连接或任务时间；未同步时不得 online |
+| 明确 disconnected | offline | 保留最后可信任务并加过期提示 |
+| 已同步且非 offline，成功输入年龄达到 30 秒 | stale | 保留任务，加过期提示，不产生失败提醒 |
+| 恢复连接 | stale → 新 baseline 后 online | baseline 历史失败不补发；后续新事件才有资格提醒 |
+| 切换 epoch / provider generation 或序号缺口 | stale（若明确断线则 offline） | 丢弃旧回调／未同步增量，重新 baseline；不跨流拼接 |
+
+## 8 失败提醒规则
+
+M0 只向模拟通知 sink 投递。系统通知权限状态通过 fixture 注入 `not_determined`、`authorized`、`denied`；不弹实际权限框，不访问实际系统通知设置。
+
+应用级去重键为 `(source_id, task_id, attempt_id)`，不是系统通知 request identifier。仅在已完成 baseline 的当前 generation 中，接受一个真正的新失败增量时，且此键从未处理过，才形成候选提醒。初始 baseline 和重连 baseline 中的 failed 键立即标记已观察，永不补发。
+
+reducer 与去重账本必须在同一串行执行域内，或提供等价原子事务：先把键置为 reserved，再调用可能异步的 sink。投递尚未完成时到达的重复／详情更新也只能看到已有 reserved，不能二次投递。completion 必须匹配 generation 与 delivery token；旧 completion 最多结束其自身旧记录，不能改变当前任务、连接、当前世代账本或移除新世代 reservation。
+
+同一 attempt 的失败详情更新、SSE 重放、重复回调、UI 重新展开或恢复联网都不能再次提醒。新 attempt 的失败可以提醒一次。M0 去重账本只在本进程内存保存，不写用户目录；重启后重新用 baseline 抑制历史失败。没有 baseline 时禁止提醒。
+
+`denied` 或 `not_determined` 时，仅显示卡片内提示，不重复请求权限、不调用通知 sink；该失败记为 suppressed。后来变为 authorized 也不回放 suppressed 失败。投递失败或结果 uncertain 记账并停止自动重发，不能以同 identifier 再投递冒充去重。关闭后重新打开面板不重置账本；只有显式重置模拟演示才可开始新的测试世代，并保持明显模拟标识。
+
+## 9 交互与窗口边界
+
+默认界面建议：收起态显示概览；展开态显示任务摘要、状态及最后更新时间；点卡片打开本地只读详情。颜色必须同时配文字／图标，不以红绿作为唯一信息。具体尺寸、动画曲线和品牌视觉不在本次冻结范围，不复制 Douding 资源。
+
+默认只在用户显式菜单操作时选择显示器；首次使用取当前指针所在屏，失败则取系统当前主显示器。不能把 `NSScreen.main` 直接等同硬件主屏。屏幕移除、分辨率和可用工作区变化时重新计算屏幕及 visibleFrame；不能长期缓存坐标。所选屏幕断开时回退到可用主显示器，保证菜单入口可用。坐标允许负值，必须按当前屏幕坐标、缩放和可用工作区计算，不把负坐标截到零。
+
+悬停展开不得激活本 App 或取得 key window，不抢键盘焦点、不截获全局键盘、不改变桌面 Space；用户明确点击可以聚焦本 App 的本地详情。Esc 只在本 App 已获焦点时消费；非 key 的悬停面板不能偷取前台 App 的 Esc。连续移入移出、全屏应用和缩放变化不得留下不可见的点击遮挡层。菜单栏入口必须能呼出、隐藏和退出。默认不设置登录自启。
+
+详情入口与原任务入口分开：M0 本地详情始终只读；原任务不可达／未配置时按钮禁用并给原因。测试替身仅记录拟打开目标，不触发浏览器。M1 才讨论经过验证的 HTTPS 同源路径、允许的 host、路径身份及不含 token 的链接；禁止使用任意 fixture URL 打开文件、执行 scheme 或传递凭据。
+
+## 10 隐私安全与资源保护
+
+- M0 不请求 Accessibility、录屏、自动化、完整磁盘访问、相机或麦克风；不模拟用户点击系统批准。
+- 不在 `van-sticker-studio`、原 Paperclip 安装／数据库、Douding 安装包或用户应用目录写入。
+- 不读取密码、私钥、token、私人身份文件、聊天数据库或系统日志正文。fixture 必须人工构造，不从真实业务数据脱敏后充当默认样本。
+- 不添加自更新、联网版本检查、遥测、崩溃上传、监听端口或隐式 shell 调用。
+- 只使用获授权的独立工作区。任何实际 Mac 构建／启动需要已确认的执行器、运行窗口和本项目许可；“云模型”不代表命令不在 Mac 上执行。
+- 启动前只在许可范围做必要的有限资源检查；不全盘扫描、不自动清理、不杀其它进程、不升权、不安装 Xcode／依赖。资源不足或控制冲突立即停在边界。
+- 验收运行正常退出本应用；不以强杀其它应用、删除缓存或关闭安全保护修复环境。
+
+## 11 多 agent 协作与权责
+
+具体流程和 gate 以 `ACCEPTANCE.md` 为准。一个任务只能有一个实现 owner；设计作者、实现者、独立 reviewer 的身份要分别记录。读评审可并行，写入须取得文件与语义锁。超时、静默、模型失败和定时器都不自动释放锁或赋予接管权限。
+
+实现批准后也不能自动合并、发行、创建后台、扩大权限或产生费用。主协调者负责对照 scope 发派单、确认真实 accepted/run/结果、保存停止交接；用户保留范围调整、合并、发布、权限和费用决定。
+
+## 12 Gate 与本阶段结果
+
+本次只到设计草案：文档结构自检不等产品测试。独立 reviewer 须绑定本版本、每个文件 SHA-256 和实际差异，检查状态模型、授权边界、可测试性及遗漏。评审发现的 P1/P2 设计问题关闭后，交用户批准精确冻结版本；之后才编写实现计划并确认具体执行授权。
+
+当前实际状态：仓库未创建；产品文件未创建；依赖未安装；mock 产品测试、macOS 构建、两架构实机、签名验证、截图和系统通知全部 **not_run**。不存在可宣称的可运行客户端或 M0 产品通过。
+
+## 13 风险与未决事项
+
+1. **后端入口缺失**：独立客户端不能解决原云实例入口；M1 前必须给出真实可达且受保护的连接方案。
+2. **只读身份待核**：不能把“客户端只调用 GET”当作服务端只读授权；M1 要核服务端权限。
+3. **Mac 执行条件**：目前没有本项目的编译、启动、系统通知或分发批准；拟议 Intel／ARM 支持要独立证据。
+4. **仓库信息**：私有路线已同意；建议名 `paperclip-island` 的实际 owner/name、冲突检查和创建时机尚未落定。
+5. **UI 默认**：30 秒 stale 阈值、稳定排序及显示器策略是建议，随本设计批准冻结；不据此宣称用户逐项选择。
+6. **分发签名**：仅内部开发还是对外分发未决。Developer ID、公证、账号、费用及品牌许可不在本次授权。
+7. **M0 名称的边界**：M0 逻辑验证、M0 macOS 原型验证及未来真实连接不能合并成一个模糊“全绿”。
+
+## 14 依据
+
+- 用户 2026 年 11 月 2 日 14:09 UTC 请求独立 repo/spec/验收闭环与多 agent 评审，14:11 UTC 同意独立私有路线；设计本身尚待批准。
+- 本次 Douding 上传静态检查与附录仅支持已有包结构结论，不支持运行、签名、权限或可分发结论。
+- Apple 官方 `NSPanel`：https://developer.apple.com/documentation/appkit/nspanel
+- Apple 官方 `MenuBarExtra`：https://developer.apple.com/documentation/swiftui/menubarextra
+- Apple 官方通知 request identifier 语义：https://developer.apple.com/documentation/usernotifications/unnotificationrequest/init(identifier:content:trigger:)
+- Apple 官方 NSScreen.main：https://developer.apple.com/documentation/appkit/nsscreen/main
+- Apple 官方签名说明：https://developer.apple.com/library/archive/technotes/tn2206/
+- 官方框架能力不证明本客户端已实现或验收；具体 API 可用性须在批准后的目标 SDK 编译中核对。

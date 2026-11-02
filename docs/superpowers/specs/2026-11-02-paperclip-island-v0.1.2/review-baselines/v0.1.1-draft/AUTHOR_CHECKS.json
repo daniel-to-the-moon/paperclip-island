@@ -1,0 +1,64 @@
+{
+  "kind": "author-document-checks",
+  "spec_version": "paperclip-island-m0-spec-v0.1.1-draft",
+  "observed_at": "2026-11-02T14:35:11Z",
+  "json_parse": "pass",
+  "draft202012_metaschema": "pass",
+  "internal_refs_resolved": 125,
+  "conditional_probes": [
+    {
+      "id": "dirty_source_rejected",
+      "expected_valid": false,
+      "actual_valid": false,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "clean_source_allowed",
+      "expected_valid": true,
+      "actual_valid": true,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "critical_accepted_risk",
+      "expected_valid": false,
+      "actual_valid": false,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "critical_open",
+      "expected_valid": false,
+      "actual_valid": false,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "critical_resolved",
+      "expected_valid": true,
+      "actual_valid": true,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "mixed_mock_result_rejected",
+      "expected_valid": false,
+      "actual_valid": false,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    },
+    {
+      "id": "mock_pass_condition_allowed",
+      "expected_valid": true,
+      "actual_valid": true,
+      "result": "pass",
+      "scope": "synthetic schema conditional fragment only, not product or evidence truth"
+    }
+  ],
+  "full_evidence_instance_validation": "not_run",
+  "product_tests": "not_run",
+  "macos_build": "not_run",
+  "scope": "Local document JSON structure only; no installation or product execution. Existing jsonschema used, not downloaded.",
+  "timestamp_basis": "clock.curr_time immediately before repeat metaschema validation; conditional probes ran in preceding local check"
+}

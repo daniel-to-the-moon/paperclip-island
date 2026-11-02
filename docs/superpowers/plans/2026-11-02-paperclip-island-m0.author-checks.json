@@ -1,0 +1,19 @@
+{
+  "plan_path": "/workspace/scratch/8f091ff4cc4d/docs/superpowers/plans/2026-11-02-paperclip-island-m0.md",
+  "plan_bytes": 35103,
+  "plan_sha256": "040e21922c284e3b7ecedba65be37f482bbb5d57c5789b0bda4522fa4cf4bcda",
+  "authorization_path": "/workspace/scratch/8f091ff4cc4d/docs/superpowers/AUTHORIZATION-2026-11-02-design-v0.1.2.md",
+  "authorization_sha256": "45dc90efb03396d7ef785aed486eb8a704ed9a93b50dc058d8fe145a0ca859e5",
+  "checks": {
+    "acceptance_mapping": "49 exact IDs, no duplicates or omissions",
+    "tasks": 7,
+    "unchecked_future_steps": 37,
+    "frozen_source_hashes": "5/5 unchanged",
+    "required_header": "present",
+    "author_self_review": "coverage, granularity, types, review-focus and proportion manually checked"
+  },
+  "product_tests": "not_run",
+  "macos": "not_run",
+  "repository_writes": "not_performed",
+  "plan_execution_approval": "pending"
+}

@@ -1,0 +1,39 @@
+{
+  "kind": "design-review-manifest",
+  "spec_version": "paperclip-island-m0-spec-v0.1.0-draft",
+  "created_at": "2026-11-02T14:25:12Z",
+  "files": [
+    {
+      "path": "SPEC.md",
+      "bytes": 18657,
+      "sha256": "9833460eb8843ff30d93bd689457edc0dd1401b5e4f4df8554e07b75e7cd4296"
+    },
+    {
+      "path": "ACCEPTANCE.md",
+      "bytes": 16546,
+      "sha256": "9575d925a5ea73c79283587514814d51d9619398934a501bd149bba3ad3b9c83"
+    },
+    {
+      "path": "EVIDENCE.schema.json",
+      "bytes": 84596,
+      "sha256": "5614968572b88f0f6970b993db93944bcf74789aadb65d87299e006854adda10"
+    }
+  ],
+  "product_repo": null,
+  "product_source_commit": null,
+  "product_tests": "not_run",
+  "macos_build": "not_run",
+  "signature_verification": "not_run",
+  "screenshots": "not_run",
+  "review_status": "in_progress",
+  "approval_status": "pending_user_design_approval",
+  "schema_validation": {
+    "json_parse": "pass",
+    "internal_refs": "124 resolved, contributor report",
+    "meta_and_instance_validation": "not_run"
+  },
+  "notes": [
+    "Only document artifacts exist. No product implementation or repository created.",
+    "This manifest does not self-hash. Reviewer must verify each file independently."
+  ]
+}

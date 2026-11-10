@@ -105,8 +105,12 @@ public struct StateReducer {
                 if snapshots != (trusted[epoch] ?? [:]) { return reject(.payloadConflict) }
                 // A matching older epoch must not replace the epoch currently in view.
                 if epoch != currentEpoch { return reject(.oldBaseline) }
-                // Already synchronized: this is a duplicate baseline and must not refresh times.
-                if state.synchronized { return transition() }
+                // An online duplicate must not refresh. Timeout stale, a revoked sync, or a
+                // conflicted task confirms the snapshot and can return to online.
+                let conflicted = state.tasks.values.contains(where: \.sourceConflict)
+                if state.synchronized && state.connection == .online && !conflicted {
+                    return transition()
+                }
                 return acceptBaseline(epoch: epoch, watermark: watermark, snapshots: snapshots, now: now)
             }
         }
@@ -245,12 +249,13 @@ public struct StateReducer {
     private mutating func acceptBaseline(
         epoch: String, watermark: Int64, snapshots: [TaskKey: TaskSnapshot], now: Instant
     ) -> Transition {
-        let preserveTimes = highWater[epoch] == watermark
         var records: [TaskKey: TaskRecord] = [:]
         var observed: Set<AttemptKey> = []
         for (key, snapshot) in snapshots {
             let previous = state.tasks[key]
-            let keepTime = preserveTimes && previous?.snapshot == snapshot && previous?.sourceConflict == false
+            let keepTime = currentEpoch == epoch
+                && previous?.snapshot == snapshot
+                && previous?.sourceConflict == false
             records[key] = TaskRecord(
                 snapshot: snapshot,
                 lastTaskUpdate: keepTime ? previous!.lastTaskUpdate : now,
@@ -289,7 +294,14 @@ public struct StateReducer {
     private mutating func advance(
         tasks: [TaskKey: TaskRecord], epoch: String, sequence: Int64, payload: StreamPayload, now: Instant
     ) {
-        seen[StreamKey(epoch: epoch, sequence: sequence)] = payload
+        // The baseline watermark is already absorbed into the snapshot. Replays at or below
+        // it are old events. Only individually accepted updates and heartbeats are comparable.
+        switch payload {
+        case .baseline:
+            break
+        case .task, .heartbeat:
+            seen[StreamKey(epoch: epoch, sequence: sequence)] = payload
+        }
         cursor = sequence
         if let existing = highWater[epoch] {
             if sequence > existing { highWater[epoch] = sequence }

@@ -18,8 +18,8 @@ final class StateReducerTests: XCTestCase {
         id: String = "task-1",
         attempt: String = "attempt-1",
         ordinal: Int64 = 1,
-        revision: Int64 = 1,
         state: TaskState = .running,
+        revision: Int64 = 1,
         title: String = "虚构任务",
         summary: String = "虚构摘要",
         sourceUpdatedAt: Date? = nil,
@@ -248,7 +248,7 @@ final class StateReducerTests: XCTestCase {
 
         var other = reducer()
         _ = other.apply(baseline(watermark: 10, tasks: [task(title: "基线")]), now: at(0))
-        let sameSequence = other.apply(update(sequence: 10, task: task(title: "别的", revision: 2)), now: at(1))
+        let sameSequence = other.apply(update(sequence: 10, task: task(revision: 2, title: "别的")), now: at(1))
         XCTAssertEqual(sameSequence.diagnostics, [.payloadConflict])
         XCTAssertEqual(sameSequence.state.connection, .stale)
         XCTAssertEqual(sameSequence.state.tasks[key()]?.snapshot.title, "基线")
@@ -268,10 +268,10 @@ final class StateReducerTests: XCTestCase {
 
     func test_ST07_oldAttempt() {
         var reducer = reducer()
-        let current = task(attempt: "attempt-new", ordinal: 5, revision: 3, state: .succeeded, title: "当前")
+        let current = task(attempt: "attempt-new", ordinal: 5, state: .succeeded, revision: 3, title: "当前")
         _ = reducer.apply(baseline(watermark: 10, tasks: [current]), now: at(0))
 
-        let oldAttempt = task(attempt: "attempt-old", ordinal: 2, revision: 9, state: .failed, title: "倒退")
+        let oldAttempt = task(attempt: "attempt-old", ordinal: 2, state: .failed, revision: 9, title: "倒退")
         let ignored = reducer.apply(update(sequence: 11, task: oldAttempt), now: at(1_000))
         XCTAssertTrue(ignored.diagnostics.isEmpty)
         XCTAssertEqual(ignored.state.tasks[key()]?.snapshot, current)
@@ -280,7 +280,7 @@ final class StateReducerTests: XCTestCase {
         XCTAssertTrue(ignored.newFailureCandidates.isEmpty)
         XCTAssertEqual(ignored.state.connection, .online)
 
-        let oldRevision = task(attempt: "attempt-new", ordinal: 5, revision: 1, state: .running, title: "旧修订")
+        let oldRevision = task(attempt: "attempt-new", ordinal: 5, state: .running, revision: 1, title: "旧修订")
         let stillCurrent = reducer.apply(update(sequence: 12, task: oldRevision), now: at(2_000))
         XCTAssertEqual(stillCurrent.state.tasks[key()]?.snapshot, current)
         XCTAssertEqual(stillCurrent.state.tasks[key()]?.lastTaskUpdate, at(0))
@@ -334,7 +334,7 @@ final class StateReducerTests: XCTestCase {
         XCTAssertEqual(reversed.state.tasks[key()]?.sourceConflict, true)
         XCTAssertTrue(reversed.newFailureCandidates.isEmpty)
 
-        let fresh = task(attempt: "attempt-2", ordinal: 2, revision: 1, state: .running, title: "新尝试")
+        let fresh = task(attempt: "attempt-2", ordinal: 2, state: .running, revision: 1, title: "新尝试")
         let unlocked = other.apply(update(sequence: 12, task: fresh), now: at(2_000))
         XCTAssertEqual(unlocked.state.tasks[key()]?.snapshot, fresh)
         XCTAssertEqual(unlocked.state.tasks[key()]?.sourceConflict, false)
@@ -349,18 +349,18 @@ final class StateReducerTests: XCTestCase {
         XCTAssertTrue(observed.newFailureCandidates.isEmpty)
         XCTAssertEqual(observed.baselineObservedFailures.count, 1)
 
-        let started = task(attempt: "attempt-new", ordinal: 2, revision: 1, state: .running, title: "新尝试")
+        let started = task(attempt: "attempt-new", ordinal: 2, state: .running, revision: 1, title: "新尝试")
         let visible = reducer.apply(update(sequence: 11, task: started), now: at(1_000))
         XCTAssertEqual(visible.state.tasks[key()]?.snapshot, started)
         XCTAssertEqual(visible.state.tasks[key()]?.sourceConflict, false)
         XCTAssertTrue(visible.newFailureCandidates.isEmpty)
 
-        let failed = task(attempt: "attempt-new", ordinal: 2, revision: 2, state: .failed, title: "新失败")
+        let failed = task(attempt: "attempt-new", ordinal: 2, state: .failed, revision: 2, title: "新失败")
         let candidate = reducer.apply(update(sequence: 12, task: failed), now: at(2_000))
         XCTAssertEqual(candidate.newFailureCandidates.map(\.snapshot), [failed])
         XCTAssertEqual(candidate.state.tasks[key()]?.snapshot.state, .failed)
 
-        let detail = task(attempt: "attempt-new", ordinal: 2, revision: 3, state: .failed, title: "细节")
+        let detail = task(attempt: "attempt-new", ordinal: 2, state: .failed, revision: 3, title: "细节")
         let once = reducer.apply(update(sequence: 13, task: detail), now: at(3_000))
         XCTAssertTrue(once.newFailureCandidates.isEmpty)
         XCTAssertEqual(once.state.tasks[key()]?.snapshot, detail)
@@ -370,7 +370,7 @@ final class StateReducerTests: XCTestCase {
         var sameOrdinal = reducer()
         let original = task(attempt: "attempt-a", ordinal: 1, state: .running, title: "原尝试")
         _ = sameOrdinal.apply(baseline(watermark: 5, tasks: [original]), now: at(0))
-        let swappedID = task(attempt: "attempt-b", ordinal: 1, revision: 2, state: .failed, title: "换了ID")
+        let swappedID = task(attempt: "attempt-b", ordinal: 1, state: .failed, revision: 2, title: "换了ID")
         let rejected = sameOrdinal.apply(update(sequence: 6, task: swappedID), now: at(1_000))
         XCTAssertEqual(rejected.diagnostics, [.attemptConflict])
         XCTAssertEqual(rejected.state.tasks[key()]?.snapshot, original)
@@ -384,7 +384,7 @@ final class StateReducerTests: XCTestCase {
 
         var sameID = reducer()
         _ = sameID.apply(baseline(watermark: 5, tasks: [original]), now: at(0))
-        let swappedOrdinal = task(attempt: "attempt-a", ordinal: 4, revision: 2, state: .succeeded, title: "同ID换序号")
+        let swappedOrdinal = task(attempt: "attempt-a", ordinal: 4, state: .succeeded, revision: 2, title: "同ID换序号")
         let conflict = sameID.apply(update(sequence: 6, task: swappedOrdinal), now: at(1_000))
         XCTAssertEqual(conflict.diagnostics, [.attemptConflict])
         XCTAssertEqual(conflict.state.tasks[key()]?.snapshot, original)
@@ -867,7 +867,7 @@ final class StateReducerTests: XCTestCase {
                 var reducer = reducer()
                 prepare(&reducer)
                 let nextSequence: Int64 = name == "conflict" ? 3 : 2
-                let incoming = task(attempt: "attempt-next", ordinal: 2, revision: 1, state: input, title: "新尝试-\(input.rawValue)")
+                let incoming = task(attempt: "attempt-next", ordinal: 2, state: input, revision: 1, title: "新尝试-\(input.rawValue)")
                 let transition = reducer.apply(update(sequence: nextSequence, task: incoming), now: at(1_000))
                 let label = "\(name)->attempt(\(input.rawValue))"
                 XCTAssertEqual(transition.state.tasks[key()]?.snapshot, incoming, label)
@@ -1017,12 +1017,12 @@ final class StateReducerTests: XCTestCase {
 
     func test_integerBoundariesDoNotTrap() {
         var edge = reducer()
-        let maxed = task(attempt: "attempt-a", ordinal: Int64.max, revision: Int64.max, state: .running)
+        let maxed = task(attempt: "attempt-a", ordinal: Int64.max, state: .running, revision: Int64.max)
         _ = edge.apply(baseline(watermark: 10, tasks: [maxed]), now: at(0))
         let ignored = edge.apply(
             update(sequence: 11, task: task(
-                attempt: "attempt-a", ordinal: Int64.max, revision: Int64.max,
-                state: .failed, title: "不应覆盖"
+                attempt: "attempt-a", ordinal: Int64.max, state: .failed,
+                revision: Int64.max, title: "不应覆盖"
             )),
             now: at(5)
         )
@@ -1034,7 +1034,7 @@ final class StateReducerTests: XCTestCase {
         XCTAssertTrue(ignored.newFailureCandidates.isEmpty)
 
         let clash = edge.apply(
-            update(sequence: 12, task: task(attempt: "attempt-b", ordinal: Int64.max, revision: 1, state: .succeeded)),
+            update(sequence: 12, task: task(attempt: "attempt-b", ordinal: Int64.max, state: .succeeded, revision: 1)),
             now: at(6)
         )
         XCTAssertEqual(clash.diagnostics, [.attemptConflict])
@@ -1086,7 +1086,7 @@ final class StateReducerTests: XCTestCase {
         XCTAssertEqual(next.state.tasks[key()]?.snapshot, original)
 
         let conflict = reducer.apply(
-            update(sequence: 22, task: task(attempt: "attempt-other", ordinal: 1, revision: 2, state: .failed)),
+            update(sequence: 22, task: task(attempt: "attempt-other", ordinal: 1, state: .failed, revision: 2)),
             now: at(5)
         )
         XCTAssertEqual(conflict.diagnostics, [.attemptConflict])

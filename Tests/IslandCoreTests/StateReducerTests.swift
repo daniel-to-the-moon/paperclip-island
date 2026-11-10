@@ -248,12 +248,22 @@ final class StateReducerTests: XCTestCase {
 
         var other = makeReducer()
         _ = other.apply(baseline(watermark: 10, tasks: [task(title: "基线")]), now: at(0))
-        let sameSequence = other.apply(update(sequence: 10, task: task(revision: 2, title: "别的")), now: at(1))
-        XCTAssertEqual(sameSequence.diagnostics, [.payloadConflict])
-        XCTAssertEqual(sameSequence.state.connection, .stale)
+        let belowWatermark = other.apply(heartbeat(sequence: 9), now: at(1))
+        XCTAssertTrue(belowWatermark.diagnostics.isEmpty)
+        XCTAssertEqual(belowWatermark.state.connection, .online)
+        XCTAssertTrue(belowWatermark.state.synchronized)
+        XCTAssertEqual(belowWatermark.state.lastSuccess, at(0))
+        let sameSequence = other.apply(update(sequence: 10, task: task(revision: 2, title: "别的")), now: at(2))
+        XCTAssertTrue(sameSequence.diagnostics.isEmpty)
+        XCTAssertEqual(sameSequence.state.connection, .online)
+        XCTAssertTrue(sameSequence.state.synchronized)
         XCTAssertEqual(sameSequence.state.tasks[key()]?.snapshot.title, "基线")
+        XCTAssertEqual(sameSequence.state.tasks[key()]?.lastTaskUpdate, at(0))
         XCTAssertEqual(sameSequence.state.lastSuccess, at(0))
-        XCTAssertNotEqual(sameSequence.state.connection, .online)
+        let continued = other.apply(heartbeat(sequence: 11), now: at(3))
+        XCTAssertEqual(continued.state.connection, .online)
+        XCTAssertEqual(continued.state.lastSuccess, at(3))
+        XCTAssertEqual(continued.state.tasks[key()]?.lastTaskUpdate, at(0))
 
         var replayedBaseline = makeReducer()
         let snapshot = task(state: .running, title: "重复基线")
@@ -392,6 +402,16 @@ final class StateReducerTests: XCTestCase {
         XCTAssertTrue(conflict.newFailureCandidates.isEmpty)
         XCTAssertEqual(conflict.state.connection, .stale)
         XCTAssertNotEqual(conflict.state.connection, .online)
+
+        var lowerOrdinal = makeReducer()
+        _ = lowerOrdinal.apply(baseline(watermark: 5, tasks: [original]), now: at(0))
+        let older = task(attempt: "attempt-a", ordinal: 0, state: .failed, revision: 2, title: "更低序号")
+        let lowered = lowerOrdinal.apply(update(sequence: 6, task: older), now: at(1_000))
+        XCTAssertEqual(lowered.diagnostics, [.attemptConflict])
+        XCTAssertEqual(lowered.state.connection, .stale)
+        XCTAssertFalse(lowered.state.synchronized)
+        XCTAssertEqual(lowered.state.tasks[key()]?.snapshot, original)
+        XCTAssertTrue(lowered.newFailureCandidates.isEmpty)
     }
 
     func test_ST11_malformed() {
@@ -797,40 +817,48 @@ final class StateReducerTests: XCTestCase {
     }
 
     func test_ST23_matrix() {
+        let matrix: [(current: TaskState, input: TaskState, state: TaskState, conflict: Bool, candidate: Bool)] = [
+            (.running, .running, .running, false, false),
+            (.running, .succeeded, .succeeded, false, false),
+            (.running, .failed, .failed, false, true),
+            (.running, .unknown, .unknown, false, false),
+            (.unknown, .running, .running, false, false),
+            (.unknown, .succeeded, .succeeded, false, false),
+            (.unknown, .failed, .failed, false, true),
+            (.unknown, .unknown, .unknown, false, false),
+            (.succeeded, .running, .unknown, true, false),
+            (.succeeded, .succeeded, .succeeded, false, false),
+            (.succeeded, .failed, .unknown, true, false),
+            (.succeeded, .unknown, .unknown, true, false),
+            (.failed, .running, .unknown, true, false),
+            (.failed, .succeeded, .unknown, true, false),
+            (.failed, .failed, .failed, false, false),
+            (.failed, .unknown, .unknown, true, false)
+        ]
+        XCTAssertEqual(matrix.count, 16)
         let states = TaskState.allCases
-        func expected(current: TaskState, input: TaskState) -> (state: TaskState, conflict: Bool, candidate: Bool) {
-            switch (current, input) {
-            case (.running, .failed), (.unknown, .failed):
-                return (input, false, true)
-            case (.succeeded, .succeeded), (.failed, .failed):
-                return (input, false, false)
-            case (.succeeded, _), (.failed, _):
-                return (.unknown, true, false)
-            default:
-                return (input, false, false)
-            }
-        }
+        XCTAssertEqual(Set(matrix.map(\.current)), Set(states))
+        XCTAssertEqual(Set(matrix.map(\.input)), Set(states))
 
-        for current in states {
-            for input in states {
-                var reducer = makeReducer()
-                let initial = task(state: current, revision: 1, title: "当前-\(current.rawValue)")
-                _ = reducer.apply(baseline(watermark: 1, tasks: [initial]), now: at(0))
-                let incoming = task(state: input, revision: 2, title: "输入-\(input.rawValue)")
-                let transition = reducer.apply(update(sequence: 2, task: incoming), now: at(1_000))
-                let want = expected(current: current, input: input)
-                let label = "\(current.rawValue)->\(input.rawValue)"
-                XCTAssertEqual(transition.state.tasks[key()]?.snapshot.state, want.state, label)
-                XCTAssertEqual(transition.state.tasks[key()]?.sourceConflict, want.conflict, label)
-                XCTAssertEqual(transition.newFailureCandidates.isEmpty, !want.candidate, label)
+        for cell in matrix {
+            let (current, input, wantState, wantConflict, wantCandidate) = (cell.current, cell.input, cell.state, cell.conflict, cell.candidate)
+            var reducer = makeReducer()
+            let initial = task(state: current, revision: 1, title: "当前-\(current.rawValue)")
+            _ = reducer.apply(baseline(watermark: 1, tasks: [initial]), now: at(0))
+            let incoming = task(state: input, revision: 2, title: "输入-\(input.rawValue)")
+            let transition = reducer.apply(update(sequence: 2, task: incoming), now: at(1_000))
+            let label = "\(current.rawValue)->\(input.rawValue)"
+                XCTAssertEqual(transition.state.tasks[key()]?.snapshot.state, wantState, label)
+                XCTAssertEqual(transition.state.tasks[key()]?.sourceConflict, wantConflict, label)
+                XCTAssertEqual(transition.newFailureCandidates.isEmpty, !wantCandidate, label)
                 XCTAssertEqual(transition.state.connection, .online, label)
                 XCTAssertTrue(transition.state.synchronized, label)
                 XCTAssertEqual(transition.state.tasks[key()]?.snapshot.title, incoming.title, label)
                 XCTAssertEqual(transition.state.tasks[key()]?.lastTaskUpdate, at(1_000), label)
-                if want.candidate {
+                if wantCandidate {
                     XCTAssertEqual(transition.newFailureCandidates.first?.snapshot.state, .failed, label)
                 }
-                if want.conflict {
+                if wantConflict {
                     let locked = reducer.apply(
                         update(sequence: 3, task: task(state: .succeeded, revision: 3, title: "仍锁定")),
                         now: at(2_000)
@@ -841,7 +869,6 @@ final class StateReducerTests: XCTestCase {
                     XCTAssertTrue(locked.newFailureCandidates.isEmpty, label)
                     XCTAssertEqual(locked.state.connection, .online, label)
                 }
-            }
         }
 
         let origins: [(String, (inout StateReducer) -> Void)] = [
@@ -979,6 +1006,86 @@ final class StateReducerTests: XCTestCase {
         XCTAssertEqual(higher.baselineObservedFailures, [AttemptKey(taskKey: higherTask.key, attemptID: higherTask.attemptID)])
     }
 
+    func test_consistentSameWatermarkBaselineRestoresTimedOutConnection() {
+        var reducer = makeReducer()
+        let snapshot = task(state: .running, title: "保持")
+        _ = reducer.apply(baseline(watermark: 10, tasks: [snapshot]), now: at(0))
+        let duplicate = reducer.apply(baseline(watermark: 10, tasks: [snapshot]), now: at(100))
+        XCTAssertTrue(duplicate.diagnostics.isEmpty)
+        XCTAssertEqual(duplicate.state.connection, .online)
+        XCTAssertEqual(duplicate.state.lastSuccess, at(0))
+        XCTAssertEqual(duplicate.state.tasks[key()]?.lastTaskUpdate, at(0))
+
+        XCTAssertEqual(reducer.tick(now: at(30_000)).state.connection, .stale)
+        XCTAssertTrue(reducer.state.synchronized)
+        let confirmed = reducer.apply(baseline(watermark: 10, tasks: [snapshot]), now: at(30_000))
+        XCTAssertTrue(confirmed.diagnostics.isEmpty)
+        XCTAssertEqual(confirmed.state.connection, .online)
+        XCTAssertTrue(confirmed.state.synchronized)
+        XCTAssertEqual(confirmed.state.lastSuccess, at(30_000))
+        XCTAssertEqual(confirmed.state.tasks[key()]?.snapshot, snapshot)
+        XCTAssertEqual(confirmed.state.tasks[key()]?.lastTaskUpdate, at(0))
+        XCTAssertTrue(confirmed.newFailureCandidates.isEmpty)
+    }
+
+    func test_higherWatermarkBaselinePreservesUnchangedTaskTime() {
+        var reducer = makeReducer()
+        let kept = task(id: "kept", state: .running, revision: 3, title: "不变")
+        let changed = task(id: "changed", state: .running, revision: 1, title: "旧")
+        _ = reducer.apply(baseline(watermark: 10, tasks: [kept, changed]), now: at(0))
+        let changedNext = task(id: "changed", state: .succeeded, revision: 2, title: "新")
+        let higher = reducer.apply(baseline(watermark: 20, tasks: [kept, changedNext]), now: at(5_000))
+        XCTAssertEqual(higher.state.connection, .online)
+        XCTAssertEqual(higher.state.lastSuccess, at(5_000))
+        XCTAssertEqual(higher.state.tasks[kept.key]?.snapshot, kept)
+        XCTAssertEqual(higher.state.tasks[kept.key]?.lastTaskUpdate, at(0))
+        XCTAssertEqual(higher.state.tasks[changed.key]?.snapshot, changedNext)
+        XCTAssertEqual(higher.state.tasks[changed.key]?.lastTaskUpdate, at(5_000))
+
+        let switched = reducer.apply(baseline(epoch: "epoch-2", watermark: 1, tasks: [kept]), now: at(8_000))
+        XCTAssertEqual(switched.state.connection, .online)
+        XCTAssertEqual(switched.state.tasks[kept.key]?.snapshot, kept)
+        XCTAssertEqual(switched.state.tasks[kept.key]?.lastTaskUpdate, at(8_000))
+    }
+
+    func test_unseenTaskIDFromIncrementalIsAccepted() {
+        var reducer = makeReducer()
+        let existing = task(id: "existing", state: .running, title: "已有")
+        _ = reducer.apply(baseline(watermark: 4, tasks: [existing]), now: at(0))
+        let appeared = task(id: "brand-new", attempt: "attempt-new", state: .failed, title: "新任务")
+        let transition = reducer.apply(update(sequence: 5, task: appeared), now: at(1_000))
+        XCTAssertEqual(transition.state.connection, .online)
+        XCTAssertEqual(transition.state.tasks[appeared.key]?.snapshot, appeared)
+        XCTAssertEqual(transition.newFailureCandidates.map(\.snapshot), [appeared])
+        XCTAssertEqual(transition.state.tasks[existing.key]?.snapshot, existing)
+        XCTAssertEqual(transition.state.tasks[existing.key]?.lastTaskUpdate, at(0))
+    }
+
+    func test_sameWatermarkBaselineClearsSourceConflict() {
+        var reducer = makeReducer()
+        _ = reducer.apply(baseline(watermark: 10, tasks: [task(state: .succeeded, revision: 1, title: "终态")]), now: at(0))
+        let conflict = reducer.apply(update(sequence: 11, task: task(state: .running, revision: 2, title: "反向")), now: at(1_000))
+        XCTAssertEqual(conflict.state.tasks[key()]?.sourceConflict, true)
+        let converged = conflict.state.tasks[key()]!.snapshot
+        XCTAssertEqual(converged.state, .unknown)
+        let cleared = reducer.apply(baseline(watermark: 11, tasks: [converged]), now: at(2_000))
+        XCTAssertTrue(cleared.diagnostics.isEmpty)
+        XCTAssertEqual(cleared.state.connection, .online)
+        XCTAssertEqual(cleared.state.tasks[key()]?.snapshot, converged)
+        XCTAssertEqual(cleared.state.tasks[key()]?.sourceConflict, false)
+    }
+
+    func test_wakeWithCurrentGenerationIsInvalidInput() {
+        var reducer = makeReducer()
+        _ = reducer.apply(baseline(watermark: 3, tasks: [task(state: .running)]), now: at(0))
+        let before = reducer.state
+        let same = reducer.wake(newGeneration: 1, now: at(50_000))
+        XCTAssertEqual(same.diagnostics, [.invalidInput])
+        XCTAssertEqual(same.state, before)
+        XCTAssertEqual(same.state.connection, .online)
+        XCTAssertTrue(same.state.synchronized)
+    }
+
     // MARK: - Additional T2 assertions
 
     func test_twoSourcesIsolateSameTaskID() {
@@ -1044,10 +1151,11 @@ final class StateReducerTests: XCTestCase {
         var topped = makeReducer()
         _ = topped.apply(baseline(watermark: Int64.max, tasks: [task(state: .running)]), now: at(0))
         let replay = topped.apply(heartbeat(sequence: Int64.max), now: at(1))
-        XCTAssertEqual(replay.diagnostics, [.payloadConflict])
+        XCTAssertTrue(replay.diagnostics.isEmpty)
+        XCTAssertEqual(replay.state.connection, .online)
+        XCTAssertTrue(replay.state.synchronized)
         XCTAssertEqual(replay.state.tasks[key()]?.snapshot.state, .running)
         XCTAssertEqual(replay.state.lastSuccess, at(0))
-        XCTAssertNotEqual(replay.state.connection, .online)
 
         var nearTop = makeReducer()
         _ = nearTop.apply(baseline(watermark: 1, tasks: [task()]), now: at(Int64.max - 10))
